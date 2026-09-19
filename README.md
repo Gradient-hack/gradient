@@ -22,14 +22,15 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13 or newer.
    access.
 5. The preview starts with a fake 25-minute Chinatown → Soho route. The brief
    shows the time constraint and preferences: Tudor architecture, history, and
-   Chinese food. Narration advances automatically; speaking interrupts it so
-   you can ask a question.
+   Chinese food. Narration keeps exploring the current place until a location
+   update reaches the next stop; speaking interrupts it so you can ask a
+   question.
 6. Say **“Can we talk about music?”** to exercise the nearby music search and
    route re-ranking. The page also shows the V2 removed/added stops and the
    preference delta.
-7. Use **V2 Music**, **V3 Mural**, **V3B Detour**, and **V4 Food** under
-   **Rehearse the walk** to run the deterministic fake story beats. V3B exposes
-   the route-deviation choice; **Play route** sends simulated location updates
+7. Use **1 · Switch to music**, **2 · Remember mural**, **3 · Simulate wrong
+   turn**, and **4 · Find nearby food** under **Preview the story beats** to run
+   the deterministic fake events. **Start simulation** sends location updates
    when the WebSocket is live and moves the dot locally when offline.
 8. Click **End** to close the WebSocket and release the microphone.
 
@@ -64,6 +65,12 @@ completion, reconnection, and errors.
 
 The setup endpoint is `http://127.0.0.1:8888/gemini/health`.
 
+Gemini can call six focused Pydantic AI tools: `plan_walk`, `change_topic`,
+`remember_place`, `handle_route_deviation`, `find_nearby_food`, and
+`get_walk_status`. Location updates are ordinary WebSocket events rather than
+model tool calls, so GPS can update the current stop without spending a model
+turn on every fix.
+
 The browser rehearsal controls use fake route data so the complete Chinatown /
 Soho conversation can be demonstrated without a key: V1 starts at 25 minutes,
 V2 searches nearby for music and counterculture, V3 recalls a mural, V3B asks
@@ -75,8 +82,8 @@ corresponding `demo_theme` preferences when a live WebSocket is open.
 - `main.py`: shared agent instructions, walking tools, route setup, and the
   application entrypoint.
 - `gemini_proxy.py`: Pydantic AI Gemini Live WebSocket relay.
-- `walk_demo.py`: per-session fake routes, POIs, location progress, and podcast
-  chapter sequencing.
+- `walk_demo.py`: per-session fake routes, POIs, location progress, and
+  location-anchored podcast sequencing.
 - `index.html`: browser microphone capture, PCM playback, route UI, simulated
   location, podcast state, and transcripts.
 - `tests/test_gemini_proxy.py`: relay configuration and protocol tests.
