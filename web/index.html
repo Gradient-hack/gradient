@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fff9ed" />
+    <title>Waddle — podcast walks</title>
+    <style>
+      :root {
+        --cream: #fff9ed;
+        --canvas: #f7edda;
+        --paper: #fffdf8;
+        --ink: #211f1a;
+        --muted: #746d5b;
+        --faint: #b4a98e;
+        --line: #d8cdb2;
+        --yellow: #ffb800;
+        --yellow-soft: #ffe2a0;
+        --blue: #167f95;
+        --blue-soft: #d9eff3;
+        --map: #e9e5d2;
+        --shadow: 0 24px 65px rgba(72, 59, 32, .16);
+        color-scheme: light;
+      }
+      * { box-sizing: border-box; }
+      html { background: var(--canvas); min-width: 320px; }
+      body { align-items: center; background: var(--canvas); color: var(--ink); display: flex; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; justify-content: center; margin: 0; min-height: 100dvh; padding: 24px; }
+      button, input { font: inherit; }
+      button { color: inherit; cursor: pointer; }
+      button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid rgba(22, 127, 149, .35); outline-offset: 3px; }
+      button:disabled { cursor: default; opacity: .48; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1, h2, .display { font-family: Georgia, "Times New Roman", serif; letter-spacing: -.035em; }
+      .phone-shell { background: var(--cream); border: 1px solid rgba(33, 31, 26, .22); border-radius: 52px; box-shadow: var(--shadow); height: min(900px, calc(100dvh - 48px)); isolation: isolate; max-width: 460px; min-height: 700px; overflow: hidden; position: relative; width: 100%; }
+      .phone-status { align-items: center; display: grid; grid-template-columns: 1fr auto 1fr; height: 82px; left: 0; padding: 19px 34px 0; pointer-events: none; position: absolute; right: 0; top: 0; z-index: 20; }
+      .phone-time { font-size: 17px; font-variant-numeric: tabular-nums; font-weight: 750; }
+      .dynamic-island { background: #000; border-radius: 999px; height: 38px; width: 126px; }
+      .phone-signals { font-size: 14px; font-weight: 800; justify-self: end; letter-spacing: .1em; }
+      .app-screen { display: none; height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
+      .app-screen::-webkit-scrollbar { display: none; }
+      [data-screen="configure"] [data-screen-panel="configure"],
+      [data-screen="writing"] [data-screen-panel="writing"] { display: block; }
+      [data-screen="preview"] .route-experience,
+      [data-screen="walking"] .route-experience { display: block; }
+      [data-screen="preview"] [data-screen-panel="preview"],
+      [data-screen="walking"] [data-screen-panel="walking"] { display: block; }
+      .setup-screen { padding: 91px 28px 40px; }
+      .brand-kicker, .eyebrow { color: var(--muted); font-size: 12px; font-weight: 850; letter-spacing: .18em; text-transform: uppercase; }
+      .brand-kicker { margin-bottom: 8px; }
+      .setup-screen h1 { font-size: clamp(40px, 10vw, 55px); line-height: .98; margin-bottom: 14px; max-width: 10ch; }
+      .lede { color: var(--muted); font-size: 17px; line-height: 1.52; margin-bottom: 30px; }
+      .walk-form { display: grid; gap: 25px; }
+      .form-field, .choice-group { border: 0; margin: 0; padding: 0; }
+      .form-field label, .choice-group legend { display: block; font-size: 15px; font-weight: 780; margin-bottom: 8px; padding: 0; }
+      .form-field input { background: #fff; border: 2px solid var(--ink); border-radius: 16px; color: var(--ink); font-size: 16px; min-height: 48px; padding: 11px 15px; width: 100%; }
+      .form-hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+      .choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .choice-chip { background: var(--paper); border: 2px solid var(--ink); border-radius: 999px; font-size: 14px; min-height: 38px; padding: 7px 15px; }
+      .choice-chip[aria-pressed="true"] { background: var(--yellow); font-weight: 780; }
+      .quiz-row { align-items: center; display: flex; gap: 12px; }
+      .switch { background: var(--paper); border: 2px solid var(--ink); border-radius: 999px; height: 31px; padding: 2px; position: relative; width: 50px; }
+      .switch::after { background: #fff; border: 2px solid var(--ink); border-radius: 50%; content: ""; display: block; height: 23px; transform: translateX(19px); transition: transform .18s ease; width: 23px; }
+      .switch[aria-pressed="true"] { background: var(--yellow); }
+      .switch[aria-pressed="false"]::after { transform: translateX(0); }
+      .quiz-row span { font-size: 15px; }
+      .primary-cta { background: var(--yellow); border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 5px 0 var(--ink); font-size: 17px; font-weight: 820; min-height: 56px; padding: 13px 20px; width: 100%; }
+      .primary-cta:active { box-shadow: 0 2px 0 var(--ink); transform: translateY(3px); }
+      .writing-screen { align-items: center; display: none; padding: 82px 29px 30px; }
+      [data-screen="writing"] .writing-screen { display: flex; }
+      .writing-content { width: 100%; }
+      .sound-bars { align-items: end; display: flex; gap: 7px; height: 70px; margin-bottom: 26px; }
+      .sound-bars span { animation: write-wave 1s ease-in-out infinite alternate; background: var(--yellow); border: 2px solid var(--ink); border-radius: 8px; display: block; height: 30%; width: 14px; }
+      .sound-bars span:nth-child(2) { animation-delay: -.65s; height: 68%; }
+      .sound-bars span:nth-child(3) { animation-delay: -.25s; height: 92%; }
+      .sound-bars span:nth-child(4) { animation-delay: -.8s; height: 78%; }
+      .sound-bars span:nth-child(5) { animation-delay: -.45s; height: 88%; }
+      .sound-bars span:nth-child(6) { animation-delay: -.1s; height: 58%; }
+      .sound-bars span:nth-child(7) { animation-delay: -.55s; height: 64%; }
+      @keyframes write-wave { to { height: 35%; } }
+      .writing-screen h2 { font-size: 40px; line-height: 1.05; margin-bottom: 31px; }
+      .writing-steps { display: grid; gap: 20px; list-style: none; margin: 0; padding: 0; }
+      .writing-step { align-items: center; color: var(--faint); display: grid; font-size: 16px; gap: 13px; grid-template-columns: 32px 1fr; transition: color .2s ease; }
+      .writing-step::before { border: 2px solid var(--line); border-radius: 50%; content: ""; height: 28px; width: 28px; }
+      .writing-step.is-active { color: var(--ink); }
+      .writing-step.is-active::before { border-color: var(--ink); border-top-color: transparent; animation: spin .8s linear infinite; }
+      .writing-step.is-done { color: var(--ink); }
+      .writing-step.is-done::before { background: var(--yellow); border-color: var(--ink); box-shadow: inset 0 0 0 6px var(--cream); }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .route-experience { display: none; height: 100%; overflow: auto; scrollbar-width: none; }
+      .route-experience::-webkit-scrollbar { display: none; }
+      .map-stage { background: var(--map); border-bottom: 2px solid var(--ink); height: 340px; overflow: hidden; position: relative; }
+      .map-stage svg { height: 100%; width: 100%; }
+      .map-block { fill: #ded9c6; stroke: #cbc3a8; stroke-width: 1; }
+      .map-street { fill: none; stroke: #faf8ee; stroke-linecap: round; stroke-width: 16; }
+      .map-street.small { stroke-width: 8; }
+      .route-shadow { fill: none; stroke: rgba(33,31,26,.22); stroke-linecap: round; stroke-linejoin: round; stroke-width: 11; }
+      .route-line { fill: none; stroke: #d3a84e; stroke-dasharray: 4 7; stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; }
+      .poi-label { fill: var(--ink); font-size: 12px; font-weight: 800; paint-order: stroke; stroke: var(--paper); stroke-width: 6px; }
+      .user-dot { fill: #557c83; stroke: #fff; stroke-width: 4; }
+      .user-pulse { fill: rgba(85,124,131,.16); stroke: #557c83; stroke-width: 3; }
+      .map-back { background: #fff; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 4px 0 var(--ink); font-size: 14px; font-weight: 800; left: 22px; min-height: 38px; padding: 7px 17px; position: absolute; top: 93px; z-index: 4; }
+      .map-badges { display: none; left: 20px; position: absolute; right: 20px; top: 92px; z-index: 4; }
+      [data-screen="walking"] .map-back { display: none; }
+      [data-screen="walking"] .map-badges { display: flex; justify-content: space-between; }
+      .map-badge, .meta-chip { background: var(--cream); border: 2px solid var(--ink); border-radius: 10px; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 850; letter-spacing: .15em; padding: 7px 10px; text-transform: uppercase; }
+      .preview-screen { background: var(--cream); padding: 21px 24px 33px; }
+      .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+      .meta-chip { border-color: var(--muted); color: var(--muted); }
+      .meta-chip:first-child { background: var(--yellow-soft); border-color: var(--ink); color: var(--ink); }
+      .meta-chip:last-child { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+      .route-summary h2 { font-size: 35px; line-height: 1.02; margin-bottom: 10px; }
+      .route-summary > p { color: var(--muted); font-size: 15px; line-height: 1.5; margin-bottom: 19px; }
+      .stat-row { display: none; }
+      .poi-section { margin-bottom: 24px; }
+      .section-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 11px; }
+      .section-heading h3 { font-family: Georgia, "Times New Roman", serif; font-size: 20px; margin: 0; }
+      .section-heading span { color: var(--muted); font-size: 12px; }
+      .poi-list { display: grid; gap: 15px; list-style: none; margin: 0; padding: 0; }
+      .poi-item { align-items: start; display: grid; gap: 12px; grid-template-columns: 35px 1fr auto; }
+      .poi-number { align-items: center; background: #fff; border: 2px solid var(--ink); border-radius: 50%; display: flex; font-size: 13px; font-weight: 800; height: 34px; justify-content: center; width: 34px; }
+      .poi-item.is-next .poi-number { background: var(--yellow); }
+      .poi-item.is-visited .poi-number { background: var(--ink); color: #fff; }
+      .poi-copy strong { display: block; font-size: 15px; }
+      .poi-copy span { color: var(--muted); display: block; font-size: 13px; line-height: 1.35; margin-top: 2px; }
+      .poi-status { color: var(--muted); font-size: 11px; padding-top: 8px; }
+      .route-actions { display: grid; gap: 10px; }
+      .button-quiet { background: #fff; border: 2px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 750; min-height: 40px; padding: 8px 14px; }
+      .walking-screen { background: #fff; border-radius: 30px 30px 0 0; margin-top: -22px; min-height: 575px; padding: 24px 20px 124px; position: relative; z-index: 5; }
+      [data-screen="walking"] .map-stage { height: 330px; }
+      .walking-screen .eyebrow { margin-bottom: 5px; }
+      .chapter-card h2 { font-size: 34px; line-height: 1; margin-bottom: 5px; }
+      .chapter-card > p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+      .podcast-state-row, .next-chapter, .podcast-hint { display: none; }
+      .camera-frame { align-items: end; background: var(--ink); border-radius: 24px; display: flex; height: 245px; justify-content: center; overflow: hidden; padding: 18px; position: relative; }
+      .camera-frame::before { border: 2px dashed rgba(255,255,255,.48); border-radius: 17px; content: ""; inset: 20px; position: absolute; }
+      .camera-frame img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+      .camera-frame span { color: #fff; font-size: 13px; position: relative; z-index: 2; }
+      .host-prompt { align-items: start; color: var(--muted); display: grid; font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-style: italic; gap: 11px; grid-template-columns: 34px 1fr; line-height: 1.45; margin: 14px 0 18px; }
+      .host-avatar { align-items: center; background: #f4d8c8; border: 2px solid var(--ink); border-radius: 50%; color: var(--ink); display: flex; font-family: Inter, sans-serif; font-size: 12px; font-style: normal; font-weight: 800; height: 34px; justify-content: center; width: 34px; }
+      .photo-actions { display: grid; gap: 9px; grid-template-columns: 1fr 1.6fr; }
+      .photo-actions .primary-cta { min-height: 48px; }
+      .player { background: var(--cream); border-top: 2px solid var(--ink); bottom: 0; left: 0; padding: 13px 20px 18px; position: absolute; right: 0; z-index: 8; }
+      .progress-track { background: #e2d7bd; border: 2px solid var(--ink); border-radius: 999px; height: 9px; overflow: hidden; }
+      .progress-value { background: var(--yellow); height: 100%; transition: width .25s ease; width: 0%; }
+      .progress-caption { color: var(--muted); display: flex; font-size: 12px; font-variant-numeric: tabular-nums; justify-content: space-between; margin-top: 7px; }
+      .voice-controls { align-items: center; display: flex; justify-content: center; gap: 15px; }
+      .round-control { align-items: center; background: #fff; border: 2px solid var(--ink); border-radius: 50%; box-shadow: 0 4px 0 var(--ink); display: flex; font-size: 20px; font-weight: 850; height: 48px; justify-content: center; padding: 0; width: 48px; }
+      .round-control.primary { background: var(--yellow); height: 61px; width: 61px; }
+      .round-control.primary:disabled { opacity: 1; }
+      .route-diff { background: #fff8e5; border: 2px solid var(--ink); border-radius: 18px; margin-top: 18px; padding: 14px; }
+      .route-diff[hidden] { display: none; }
+      .diff-heading { display: flex; justify-content: space-between; gap: 10px; }
+      .diff-heading h2 { font-family: Inter, sans-serif; font-size: 16px; letter-spacing: 0; margin: 3px 0 0; }
+      .fake-badge, .live-badge { border: 1px solid var(--muted); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 800; height: fit-content; padding: 4px 7px; text-transform: uppercase; }
+      .route-diff > p, .diff-grid { color: var(--muted); font-size: 12px; }
+      .diff-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+      .diff-grid ul { list-style: none; margin: 4px 0 0; padding: 0; }
+      .diff-label { color: var(--ink); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+      .demo-controls, .live-details { border-top: 1px solid rgba(33,31,26,.15); margin-top: 18px; padding-top: 12px; }
+      summary { color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 750; }
+      .rehearsal-buttons, .theme-buttons { display: grid; gap: 7px; grid-template-columns: repeat(2, 1fr); margin-top: 11px; }
+      .rehearsal-buttons button, .theme-buttons button { background: #fff; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; padding: 9px; text-align: left; }
+      .rehearsal-buttons button[aria-pressed="true"], .theme-buttons button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+      .rehearsal-status, .prompt-chip, .simulation p, .connection-status, .tool-status, .event-log { color: var(--muted); font-size: 12px; line-height: 1.45; }
+      .simulation { align-items: center; display: flex; gap: 10px; justify-content: space-between; margin-top: 10px; }
+      .conversation-heading, .activity-heading { align-items: center; display: flex; justify-content: space-between; }
+      .conversation-heading h3, .activity-heading h3 { font-size: 13px; margin: 14px 0 7px; }
+      .conversation-heading span, .activity-heading span { color: var(--muted); font-size: 11px; }
+      .transcript, .tool-status { background: #f5f0e5; border-radius: 10px; padding: 10px; }
+      .transcript { max-height: 130px; overflow: auto; }
+      .transcript p { font-size: 12px; margin-bottom: 8px; }
+      .speaker { font-weight: 800; margin-right: 5px; }
+      .event-log { max-height: 60px; overflow: auto; }
+      .hidden-control { display: none; }
+      .sr-only { clip: rect(0,0,0,0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+      @media (max-width: 560px) {
+        body { padding: 0; }
+        .phone-shell { border: 0; border-radius: 0; box-shadow: none; height: 100dvh; max-width: none; min-height: 0; }
+        .setup-screen { padding-inline: 22px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="phone-shell" id="app" data-screen="configure">
+      <div class="phone-status" aria-hidden="true"><span class="phone-time">9:41</span><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div>
+
+      <section class="app-screen setup-screen" id="walk-setup" data-screen-panel="configure" aria-labelledby="setup-title">
+        <p class="brand-kicker">Waddle · Podcast walks</p>
+        <h1 id="setup-title">Where shall we wander?</h1>
+        <p class="lede">Tell us a little and we’ll write a walk, record two hosts, and show you the way.</p>
+        <form class="walk-form" id="walk-form">
+          <div class="form-field"><label for="walk-origin">Start and finish</label><input id="walk-origin" value="111 Charing Cross Road, London" autocomplete="street-address" /><p class="form-hint">We’ll loop you back here.</p></div>
+          <fieldset class="choice-group"><legend>What are you into?</legend><div class="choice-row" data-choice-group="interests" data-multiple="true"><button class="choice-chip" type="button" aria-pressed="true" data-value="oddities">Oddities</button><button class="choice-chip" type="button" aria-pressed="true" data-value="history">History</button><button class="choice-chip" type="button" aria-pressed="false" data-value="architecture">Architecture</button><button class="choice-chip" type="button" aria-pressed="false" data-value="food">Food</button><button class="choice-chip" type="button" aria-pressed="false" data-value="music">Music</button><button class="choice-chip" type="button" aria-pressed="false" data-value="ghosts">Ghosts</button></div></fieldset>
+          <fieldset class="choice-group"><legend>How long have you got?</legend><div class="choice-row" data-choice-group="duration"><button class="choice-chip" type="button" aria-pressed="false" data-value="15">15 min</button><button class="choice-chip" type="button" aria-pressed="true" data-value="30">30 min</button><button class="choice-chip" type="button" aria-pressed="false" data-value="60">60 min</button></div></fieldset>
+          <fieldset class="choice-group"><legend>Host mood</legend><div class="choice-row" data-choice-group="mood"><button class="choice-chip" type="button" aria-pressed="true" data-value="playful">Playful</button><button class="choice-chip" type="button" aria-pressed="false" data-value="calm">Calm</button><button class="choice-chip" type="button" aria-pressed="false" data-value="nerdy">Nerdy</button></div></fieldset>
+          <div class="quiz-row"><button class="switch" id="quiz-toggle" type="button" role="switch" aria-pressed="true" aria-label="Quiz me at each stop"></button><span>Quiz me at each stop</span></div>
+          <button class="primary-cta" id="make-walk" type="submit">Make my walk</button>
+        </form>
+      </section>
+
+      <section class="app-screen writing-screen" id="walk-writing" data-screen-panel="writing" aria-labelledby="writing-title">
+        <div class="writing-content"><div class="sound-bars" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><h2 id="writing-title">Writing your walk</h2><ol class="writing-steps" id="writing-steps"><li class="writing-step is-active">Finding oddities near you</li><li class="writing-step">Plotting a 30-minute loop</li><li class="writing-step">Writing the script</li><li class="writing-step">Recording Mo and June</li></ol></div>
+      </section>
+
+      <div class="route-experience">
+        <section class="map-stage" id="walk-map" aria-labelledby="map-caption">
+          <button class="map-back" id="back-to-setup" type="button">Back</button>
+          <div class="map-badges"><span class="map-badge" id="stop-badge">Stop 1 of 5</span><span class="map-badge" id="time-badge">0:00 / 30:00</span></div>
+          <svg id="route-map" viewBox="0 0 800 480" role="img" aria-label="Your walking route"><rect class="map-block" x="74" y="66" width="170" height="80" rx="11"></rect><rect class="map-block" x="315" y="34" width="175" height="92" rx="11"></rect><rect class="map-block" x="555" y="72" width="155" height="76" rx="11"></rect><rect class="map-block" x="91" y="266" width="146" height="103" rx="11"></rect><rect class="map-block" x="342" y="231" width="157" height="118" rx="11"></rect><rect class="map-block" x="583" y="268" width="126" height="103" rx="11"></rect><path class="map-street" d="M-20 182 C135 163 168 207 299 183 S542 129 820 190"></path><path class="map-street" d="M-12 407 C133 337 230 431 328 385 S575 364 823 408"></path><path class="map-street" d="M275 -20 C265 105 298 185 284 506"></path><path class="map-street" d="M517 -18 C491 90 544 205 527 500"></path><path class="map-street small" d="M41 46 C174 121 195 128 291 177 S484 238 771 229"></path><path class="map-street small" d="M45 319 C171 274 237 283 325 314 S558 274 769 311"></path><path class="map-street small" d="M170 -30 C218 96 209 159 158 267 S151 411 211 515"></path><path class="map-street small" d="M655 -22 C609 98 654 173 692 244 S678 395 632 510"></path><path id="route-shadow" class="route-shadow" d=""></path><path id="route-line" class="route-line" d=""></path><g id="poi-markers" aria-hidden="true"></g><circle id="user-pulse" class="user-pulse" cx="0" cy="0" r="18"></circle><circle id="user-dot" class="user-dot" cx="0" cy="0" r="10"></circle></svg>
+          <span class="sr-only" id="map-caption">Demo route through Chinatown and Soho</span>
+        </section>
+
+        <section class="app-screen preview-screen" id="route-preview" data-screen-panel="preview" aria-labelledby="route-title">
+          <div class="meta-row"><span class="meta-chip" id="route-duration">30 min</span><span class="meta-chip" id="route-distance">1.6 km loop</span><span class="meta-chip">2 hosts</span></div>
+          <div class="route-summary"><span class="sr-only" id="route-theme-label">Oddities walk</span><h2 id="route-title">A 30-minute Soho oddities walk</h2><p id="route-description">Five things you’ve walked past a hundred times. Mo and June narrate; you look up.</p><div class="stat-row"><span id="route-poi-count">5 stops</span></div></div>
+          <section class="poi-section" id="route-stops" aria-labelledby="poi-title"><div class="section-heading"><h3 id="poi-title">Stops along the way</h3><span id="poi-count-label">5 stops</span></div><ol class="poi-list" id="poi-list"></ol></section>
+          <div class="route-actions"><button class="primary-cta" id="start" type="button">Start walking</button></div>
+        </section>
+
+        <section class="app-screen walking-screen" id="live-walk" data-screen-panel="walking" aria-labelledby="chapter-title">
+          <div class="chapter-card"><div class="podcast-state-row"><span class="state-label" id="podcast-state-label">Ready to begin</span></div><p class="eyebrow">Snap it</p><h2 id="chapter-title">The story in front of you</h2><p id="chapter-description">Your next story begins at this stop.</p><p class="podcast-hint">Narration stays with this place until your location reaches the next stop.</p><div class="camera-frame" id="camera-frame"><img id="photo-preview" alt="" hidden /><span>Frame what you can see at this stop</span></div><div class="host-prompt"><span class="host-avatar">Ju</span><span>Grab a picture before we move on. Proof you actually looked.</span></div><div class="photo-actions"><button class="button-quiet" id="skip-photo" type="button">Skip</button><button class="primary-cta" id="take-photo" type="button">▣&nbsp; Take photo</button><input class="sr-only" id="photo-input" type="file" accept="image/*" capture="environment" /></div><div class="next-chapter"><span>Up next</span><strong id="next-chapter-title">The next story will appear here</strong></div></div>
+
+          <section class="route-diff" id="route-diff" aria-labelledby="route-diff-title" hidden><div class="diff-heading"><div><p class="eyebrow">V2 · nearby search</p><h2 id="route-diff-title">Music re-ranking from your current location</h2></div><span class="fake-badge">Route update</span></div><p id="route-diff-copy">We kept the time limit and searched nearby for a better route.</p><div class="diff-grid"><div><span class="diff-label">Removed</span><ul id="removed-stops"></ul></div><div><span class="diff-label">Added</span><ul id="added-stops"></ul></div><div><span class="diff-label">Preference</span><strong id="preference-delta">Architecture → music</strong></div></div></section>
+
+          <details class="demo-controls"><summary>Demo events</summary><div class="theme-buttons"><button id="architecture" type="button" aria-pressed="true">Local stories</button><button id="music" type="button" aria-pressed="false">Music</button></div><p class="prompt-chip">Try saying “Can we talk about music?” during the live walk.</p><div class="rehearsal-buttons"><button id="rehearsal-v2" type="button" aria-pressed="false">Switch to music</button><button id="rehearsal-v3" type="button" aria-pressed="false">Remember photo</button><button id="rehearsal-v3b" type="button" aria-pressed="false">Wrong direction</button><button id="rehearsal-v4" type="button" aria-pressed="false">Find food</button></div><p class="rehearsal-status" id="rehearsal-status" aria-live="polite">The walk is following the planned route.</p><div class="simulation"><p>Move the fake GPS along the route.</p><button class="button-quiet" id="simulate" type="button" aria-pressed="false">Play route</button></div></details>
+
+          <details class="live-details"><summary>Live details</summary><p class="connection-status" id="status" role="status" aria-live="polite">Checking Gemini setup…</p><span class="live-badge" id="live-badge">Offline</span><section aria-labelledby="conversation-title"><div class="conversation-heading"><h3 id="conversation-title">Conversation</h3><span>live transcript</span></div><div class="transcript" id="transcript" role="log" aria-live="polite"><span class="empty-state">Your conversation will appear here.</span></div></section><section aria-labelledby="activity-title"><div class="activity-heading"><h3 id="activity-title">Behind the walk</h3><span>server activity</span></div><div class="tool-status" id="tool-status">No tool activity yet.</div><div class="event-log" id="log" role="log"></div></section></details>
+        </section>
+      </div>
+
+      <div class="player" id="player" hidden><div class="progress-track" aria-label="Walk progress"><div class="progress-value" id="progress-value"></div></div><div class="progress-caption"><span id="progress-caption">Ready when you are</span><span id="eta-caption">—</span></div><div class="voice-controls"><button class="round-control" id="mute" type="button" aria-pressed="false" disabled aria-label="Mute microphone">↺</button><button class="round-control primary" id="start-panel" type="button" aria-label="Play walk">▶</button><button class="round-control" id="stop-panel" type="button" disabled aria-label="End walk">▶|</button></div></div>
+      <button class="hidden-control" id="stop" type="button" disabled>Stop</button>
+    </main>
+<script>
+      const INPUT_SAMPLE_RATE = 16000;
+      const OUTPUT_SAMPLE_RATE = 24000;
+      const WS_PROTOCOL_VERSION = 1;
+      const MAP_BOUNDS = { minLat:51.508, maxLat:51.517, minLng:-0.145, maxLng:-0.116 };
+      const SIMULATED_DEVIATION_LOCATION = Object.freeze({latitude:51.51255,longitude:-0.13495});
+      const SIMULATED_DEVIATION_DISTANCE_M = 54;
+      const SIMULATED_DEVIATION_HEADING_DEG = 270;
+      const startBtn = document.getElementById('start');
+      const startPanelBtn = document.getElementById('start-panel');
+      const stopBtn = document.getElementById('stop');
+      const stopPanelBtn = document.getElementById('stop-panel');
+      const muteBtn = document.getElementById('mute');
+      const simulateBtn = document.getElementById('simulate');
+      const statusEl = document.getElementById('status');
+      const liveBadge = document.getElementById('live-badge');
+      const toolStatusEl = document.getElementById('tool-status');
+      const transcriptEl = document.getElementById('transcript');
+      const logEl = document.getElementById('log');
+      const routeLine = document.getElementById('route-line');
+      const routeShadow = document.getElementById('route-shadow');
+      const userDot = document.getElementById('user-dot');
+      const userPulse = document.getElementById('user-pulse');
+      const poiMarkers = document.getElementById('poi-markers');
+      const progressValue = document.getElementById('progress-value');
+      const chapterTitle = document.getElementById('chapter-title');
+      const chapterDescription = document.getElementById('chapter-description');
+      const podcastStateLabel = document.getElementById('podcast-state-label');
+      const nextChapterTitle = document.getElementById('next-chapter-title');
+      const progressCaption = document.getElementById('progress-caption');
+      const etaCaption = document.getElementById('eta-caption');
+      const routeDiff = document.getElementById('route-diff');
+      const removedStops = document.getElementById('removed-stops');
+      const addedStops = document.getElementById('added-stops');
+      const preferenceDelta = document.getElementById('preference-delta');
+      const rehearsalStatus = document.getElementById('rehearsal-status');
+      const rehearsalButtons = [...document.querySelectorAll('.rehearsal-buttons button')];
+      const routeDiffTitle = document.getElementById('route-diff-title');
+      const routeDiffCopy = document.getElementById('route-diff-copy');
+      const routeDiffEyebrow = routeDiff.querySelector('.eyebrow');
+      const appEl = document.getElementById('app');
+      const playerEl = document.getElementById('player');
+      const walkForm = document.getElementById('walk-form');
+      const writingSteps = [...document.querySelectorAll('.writing-step')];
+      const backToSetupBtn = document.getElementById('back-to-setup');
+      const quizToggle = document.getElementById('quiz-toggle');
+      const takePhotoBtn = document.getElementById('take-photo');
+      const skipPhotoBtn = document.getElementById('skip-photo');
+      const photoInput = document.getElementById('photo-input');
+      const photoPreview = document.getElementById('photo-preview');
+      const stopBadge = document.getElementById('stop-badge');
+      const timeBadge = document.getElementById('time-badge');
+      const choiceGroups = [...document.querySelectorAll('[data-choice-group]')];
+
+      const routePresets = {
+        architecture: {
+          theme: 'architecture', label:'Chinatown · Soho', title: 'A short walk with a long memory', description: 'A 25-minute loop from Chinatown into Soho, with room for a change of mind.', duration_minutes: 25, distance_m: 1700,
+          geometry: [{latitude:51.5117,longitude:-0.1310},{latitude:51.5115,longitude:-0.1318},{latitude:51.5136,longitude:-0.1315},{latitude:51.5135,longitude:-0.1329},{latitude:51.5128,longitude:-0.1344}],
+          points_of_interest: [
+            {id:'chinatown-gate',name:'Chinatown Gate',subtitle:'The southern entrance to Chinatown',kind:'landmark',latitude:51.5117,longitude:-0.1310,story:'The Chinatown Gate opens the walk into Gerrard Street, where London’s Chinese community has made food, language, and celebration part of Soho’s daily rhythm.'},
+            {id:'gerrard-street',name:'Gerrard Street',subtitle:'Chinatown’s restaurant spine',kind:'street',latitude:51.5115,longitude:-0.1318,story:'Gerrard Street’s restaurants, bakeries, and late-night kitchens show how a neighbourhood can be both a destination and a living community.'},
+            {id:'st-annes-soho',name:'St Anne’s Soho',subtitle:'A church at the centre of the old parish',kind:'church',latitude:51.5136,longitude:-0.1315,story:'St Anne’s anchors a parish whose history reaches through the older village edges and into the dense West End around it.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square compresses centuries of London into one garden: formal terraces, changing communities, and constant movement.'},
+            {id:'berwick-street',name:'Berwick Street',subtitle:'Market, music, and Soho life',kind:'market',latitude:51.5128,longitude:-0.1344,story:'Berwick Street has held together market stalls, independent shops, and music history.'},
+          ],
+        },
+        music: {
+          theme: 'music', label:'V2 · Music + counterculture', title: 'A nearby search in a different key', description: 'The 25-minute limit stays fixed while nearby music and counterculture stops move up the route.', duration_minutes: 25, distance_m: 1800,
+          geometry: [{latitude:51.5127,longitude:-0.1318},{latitude:51.5133,longitude:-0.1320},{latitude:51.5130,longitude:-0.1337},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest: [
+            {id:'old-compton-street',name:'Old Compton Street',subtitle:'The bright, noisy heart of Soho',kind:'street',latitude:51.5127,longitude:-0.1318,story:'Old Compton Street carries Soho’s music, nightlife, and queer history in a compact run of theatres, bars, and cafés.'},
+            {id:'ronnie-scotts',name:'Ronnie Scott’s',subtitle:'A jazz club with a global sound',kind:'music venue',latitude:51.5133,longitude:-0.1320,story:'Ronnie Scott’s brought international jazz into the Soho night and made this small part of London a destination for musicians and listeners.'},
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'A public memory painted on a wall',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'The mural turns a wall into a neighbourhood scrapbook, holding the faces, venues, and countercultural memories that shaped modern Soho.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square compresses centuries of London into one garden.'},
+          ],
+        },
+        mural: {
+          theme:'mural', label:'V3 · Mural memory', title:'A wall worth remembering', description:'A remembered mural shapes the next story, with a small detour offered before we commit.', duration_minutes:25, distance_m:1900,
+          geometry:[{latitude:51.5127,longitude:-0.1318},{latitude:51.5133,longitude:-0.1320},{latitude:51.5130,longitude:-0.1337},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'old-compton-street',name:'Old Compton Street',subtitle:'The bright, noisy heart of Soho',kind:'street',latitude:51.5127,longitude:-0.1318,story:'Old Compton Street carries Soho’s music and counterculture.'},
+            {id:'ronnie-scotts',name:'Ronnie Scott’s',subtitle:'A jazz club with a global sound',kind:'music venue',latitude:51.5133,longitude:-0.1320,story:'Ronnie Scott’s brought international jazz into the Soho night.'},
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'You said: “I really like this”',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'You remembered the Spirit of Soho Mural, so public art, cultural history, and murals now rank higher.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square remains the final stop.'},
+          ],
+        },
+        detour: {
+          theme:'mural', label:'V3B · Berwick detour', title:'Continue without backtracking', description:'A wrong turn becomes a useful route through Berwick Street while arrival time and interest fit stay on target.', duration_minutes:25, distance_m:1900,
+          geometry:[{latitude:51.5130,longitude:-0.1337},{latitude:51.5128,longitude:-0.1344},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'The remembered landmark',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'The mural anchors the revised route.'},
+            {id:'berwick-street',name:'Berwick Street',subtitle:'No backtracking needed',kind:'market',latitude:51.5128,longitude:-0.1344,story:'The deviation becomes a route through market stalls, independent shops, and music history.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'Arrival time preserved',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'The walk rejoins its destination without retracing steps.'},
+          ],
+        },
+        food: {
+          theme:'food', label:'V4 · Food stop', title:'End with something warm', description:'A nearby food stop fits inside the remaining time, with the story still rolling as we walk.', duration_minutes:25, distance_m:1950,
+          geometry:[{latitude:51.5128,longitude:-0.1344},{latitude:51.5120,longitude:-0.1322},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'berwick-street',name:'Berwick Street',subtitle:'Your current location',kind:'market',latitude:51.5128,longitude:-0.1344,story:'The food search starts from the route and your remaining time.'},
+            {id:'nearby-food-stop',name:'Chinatown Food Stop',subtitle:'A fictional nearby bite',kind:'food stop',latitude:51.5120,longitude:-0.1322,story:'This fictional stop keeps the Chinese food thread alive without sending the walker far off route.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'Back on the route',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'The walk rejoins its destination after the food stop.'},
+          ],
+        },
+      };
+
+      let currentRoute = structuredClone(routePresets.architecture), currentTheme = 'architecture', socket = null, stream = null, captureContext = null, captureSource = null, captureProcessor = null, captureMute = null, playbackContext = null, playbackSources = new Set(), playbackNextTime = 0, audioReady = false, stopping = false, muted = false, connectionTimer = null, captureResampler = null, routeProgress = 0, routeVersion = 1, transcripts = new Map(), simulationTimer = null, simulationProgress = 0, locationSequence = 0, podcastState = 'idle', podcastCurrentChapter = null, rehearsalStage = 'base', routeDeviationPending = null, writingTimers = [], photoObjectUrl = null;
+
+      function log(line) { const row = document.createElement('div'); row.textContent = line; logEl.append(row); while (logEl.children.length > 4) logEl.firstElementChild.remove(); logEl.scrollTop = logEl.scrollHeight; }
+      function setStatus(message) { statusEl.textContent = message; }
+      function setLiveState(isLive) { liveBadge.textContent = isLive ? 'Live' : 'Offline'; liveBadge.classList.toggle('is-live', isLive); }
+      function setScreen(screen) { appEl.dataset.screen=screen; playerEl.hidden=screen!=='walking'; if(screen==='walking') document.querySelector('.route-experience').scrollTop=0; }
+      function clearWritingTimers() { for(const timer of writingTimers) clearTimeout(timer); writingTimers=[]; }
+      function selectedValues(group) { return [...document.querySelectorAll(`[data-choice-group="${group}"] [aria-pressed="true"]`)].map((button)=>button.dataset.value); }
+      function beginWalkPlan() {
+        clearWritingTimers();
+        const duration=Number(selectedValues('duration')[0] || 30), interests=selectedValues('interests'), focus=interests.includes('music')?'music':interests[0] || 'oddities';
+        const theme=focus==='music'?'music':'architecture', route=structuredClone(routePresets[theme]);
+        currentTheme=theme; route.duration_minutes=duration; route.title=`A ${duration}-minute Soho ${focus} walk`; route.description=`A conversational loop shaped around ${interests.join(', ') || 'local stories'}, narrated as you move.`;
+        writingSteps.forEach((step,index)=>{step.classList.toggle('is-active',index===0);step.classList.remove('is-done');});
+        writingSteps[1].textContent=`Plotting a ${duration}-minute loop`;
+        setScreen('writing');
+        writingSteps.forEach((step,index)=>{if(index===0)return;writingTimers.push(setTimeout(()=>{writingSteps[index-1].classList.remove('is-active');writingSteps[index-1].classList.add('is-done');step.classList.add('is-active');},index*380));});
+        writingTimers.push(setTimeout(()=>{writingSteps.at(-1).classList.remove('is-active');writingSteps.at(-1).classList.add('is-done');setRoute(route);setScreen('preview');},1700));
+      }
+      function chapterDetails(chapter) { if (!chapter) return null; if (typeof chapter === 'string') return { title:chapter, description:'' }; return { id:chapter.id, title:chapter.title || chapter.name || chapter.label || chapter.subtitle || 'Untitled chapter', description:chapter.description || chapter.story || chapter.text || chapter.summary || chapter.subtitle || '' }; }
+      function setPodcastState(event = {}) {
+        const reportedState = event.state || event.status;
+        const state = ['playing','listening','completed'].includes(reportedState) ? reportedState : 'idle';
+        podcastState = state;
+        if (Object.prototype.hasOwnProperty.call(event, 'current_chapter')) podcastCurrentChapter = chapterDetails(event.current_chapter);
+        const labels = { idle:'Ready to begin', playing:'Now playing', listening:'Listening', completed:'Walk complete' };
+        podcastStateLabel.textContent = labels[state];
+        podcastStateLabel.className = `state-label${state === 'listening' ? ' is-listening' : state === 'completed' ? ' is-completed' : ''}`;
+        if (podcastCurrentChapter) {
+          chapterTitle.textContent = podcastCurrentChapter.title;
+          if (podcastCurrentChapter.description) chapterDescription.textContent = podcastCurrentChapter.description;
+        } else if (state === 'listening') {
+          chapterTitle.textContent = 'Listening for your next question';
+          chapterDescription.textContent = 'The story is paused while Sidewalk listens. Speak when you are ready.';
+        } else if (state === 'completed') {
+          chapterTitle.textContent = 'Your walk is complete';
+          chapterDescription.textContent = 'The prepared stories are finished. Ask for another theme to keep exploring.';
+        }
+        const explicitNext = chapterDetails(event.next_chapter);
+        const currentIndex = podcastCurrentChapter?.id ? (currentRoute.points_of_interest || []).findIndex((poi) => poi.id === podcastCurrentChapter.id) : -1;
+        const fallbackNext = currentRoute.points_of_interest?.[currentIndex + 1] || currentRoute.points_of_interest?.find((poi) => poi.id !== podcastCurrentChapter?.id);
+        const next = explicitNext || chapterDetails(fallbackNext);
+        nextChapterTitle.textContent = next?.title || 'More stories ahead';
+      }
+      function renderTranscripts() {
+        const turns = [...transcripts.entries()].sort(([a],[b]) => Number(a)-Number(b)).map(([,entry]) => ({...entry})), visibleTurns = [];
+        for (const turn of turns) { const previous = visibleTurns.at(-1); if (previous?.speaker === turn.speaker) previous.text += turn.text; else visibleTurns.push(turn); }
+        transcriptEl.replaceChildren();
+        if (!visibleTurns.length) { const empty = document.createElement('span'); empty.className = 'empty-state'; empty.textContent = 'Your conversation will appear here.'; transcriptEl.append(empty); return; }
+        for (const entry of visibleTurns) { const paragraph = document.createElement('p'), speaker = document.createElement('span'); speaker.className = 'speaker'; speaker.textContent = entry.speaker === 'user' ? 'You' : 'Sidewalk'; paragraph.append(speaker, document.createTextNode(entry.text.trim())); transcriptEl.append(paragraph); }
+        transcriptEl.scrollTop = transcriptEl.scrollHeight;
+      }
+      function websocketUrl() { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${protocol}//${window.location.host}/gemini/voice`; }
+      function projectPoint(location) { return { x:((location.longitude-MAP_BOUNDS.minLng)/(MAP_BOUNDS.maxLng-MAP_BOUNDS.minLng))*720+40, y:420-((location.latitude-MAP_BOUNDS.minLat)/(MAP_BOUNDS.maxLat-MAP_BOUNDS.minLat))*370 }; }
+      function routePath(geometry) { return geometry.map((location,index) => { const point = projectPoint(location); return `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`; }).join(' '); }
+      function interpolateLocation(geometry, progress) { if (!geometry.length) return null; const scaled = Math.max(0,Math.min(1,progress))*(geometry.length-1), index = Math.min(geometry.length-2,Math.floor(scaled)); if (index < 0) return geometry[0]; const fraction = scaled-index; return { latitude:geometry[index].latitude+(geometry[index+1].latitude-geometry[index].latitude)*fraction, longitude:geometry[index].longitude+(geometry[index+1].longitude-geometry[index].longitude)*fraction }; }
+      function progressForLocation(location) { if (!location || !currentRoute.geometry?.length) return routeProgress; let nearestIndex = 0, nearestDistance = Infinity; currentRoute.geometry.forEach((point,index) => { const distance = (point.latitude-location.latitude)**2 + (point.longitude-location.longitude)**2; if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index; } }); return nearestIndex / Math.max(1,currentRoute.geometry.length - 1); }
+      function renderMap() {
+        const path = routePath(currentRoute.geometry || []); routeLine.setAttribute('d',path); routeShadow.setAttribute('d',path); poiMarkers.replaceChildren();
+        for (const [index,poi] of (currentRoute.points_of_interest || []).entries()) { const point = projectPoint(poi), group = document.createElementNS('http://www.w3.org/2000/svg','g'), circle = document.createElementNS('http://www.w3.org/2000/svg','circle'), label = document.createElementNS('http://www.w3.org/2000/svg','text'); circle.setAttribute('cx',point.x); circle.setAttribute('cy',point.y); circle.setAttribute('r','17'); circle.setAttribute('fill','#fffdf8'); circle.setAttribute('stroke','#211f1a'); circle.setAttribute('stroke-width','4'); label.setAttribute('class','poi-label'); label.setAttribute('text-anchor','middle'); label.setAttribute('dominant-baseline','central'); label.setAttribute('x',point.x); label.setAttribute('y',point.y); label.textContent = String(index+1); group.append(circle,label); poiMarkers.append(group); }
+        updateUserDot(interpolateLocation(currentRoute.geometry || [],routeProgress));
+      }
+      function renderPoiList() {
+        const list = document.getElementById('poi-list'), points = currentRoute.points_of_interest || []; list.replaceChildren(); document.getElementById('poi-count-label').textContent = `${points.length} stops`;
+        for (const [index,poi] of points.entries()) { const item = document.createElement('li'); item.className = 'poi-item'; const threshold = (index+1)/(points.length+1); if (routeProgress >= threshold+.04) item.classList.add('is-visited'); else if (routeProgress >= threshold-.16) item.classList.add('is-next'); const number = document.createElement('span'); number.className='poi-number'; number.textContent=String(index+1).padStart(2,'0'); const copy=document.createElement('div'); copy.className='poi-copy'; const title=document.createElement('strong'); title.textContent=poi.name; const subtitle=document.createElement('span'); subtitle.textContent=poi.subtitle || poi.kind || 'story stop'; copy.append(title,subtitle); const state=document.createElement('span'); state.className='poi-status'; state.textContent=item.classList.contains('is-visited')?'Heard':item.classList.contains('is-next')?'Next':`${Math.round(threshold*currentRoute.duration_minutes)} min`; item.append(number,copy,state); list.append(item); }
+      }
+      function renderRouteSummary() { const theme=currentRoute.theme || currentTheme, subject=theme==='music' || theme==='mural' || theme==='food' ? 'music' : 'architecture', count=(currentRoute.points_of_interest || []).length; document.getElementById('route-theme-label').textContent=currentRoute.label || `${theme[0].toUpperCase()}${theme.slice(1)} walk`; document.getElementById('route-title').textContent=currentRoute.title || 'A walk with a point of view'; document.getElementById('route-description').textContent=currentRoute.description || 'A changing route through the city.'; document.getElementById('route-duration').textContent=`${currentRoute.duration_minutes || 25} min`; document.getElementById('route-distance').textContent=`${((currentRoute.distance_m || 0)/1000).toFixed(1)} km loop`; document.getElementById('route-poi-count').textContent=`${count} stops`; document.getElementById('map-caption').textContent=`${count} stops · ${currentRoute.label || theme} edition`; stopBadge.textContent=`Stop 1 of ${count}`; timeBadge.textContent=`0:00 / ${currentRoute.duration_minutes || 25}:00`; document.getElementById('architecture').setAttribute('aria-pressed',String(subject==='architecture')); document.getElementById('music').setAttribute('aria-pressed',String(subject==='music')); }
+      function updateUserDot(location) { if (!location) return; const point=projectPoint(location); for (const element of [userDot,userPulse]) { element.setAttribute('cx',point.x); element.setAttribute('cy',point.y); } }
+      function updateProgress(progress,location=null,nextPoiId=null) { routeProgress=Math.max(0,Math.min(1,Number(progress)||0)); const activeLocation=location || interpolateLocation(currentRoute.geometry || [],routeProgress); updateUserDot(activeLocation); progressValue.style.width=`${routeProgress*100}%`; const duration=currentRoute.duration_minutes || 45, elapsed=Math.round(duration*routeProgress), eta=Math.max(0,Math.ceil(duration*(1-routeProgress))); progressCaption.textContent=routeProgress<.01?'Ready when you are':`${Math.round(routeProgress*100)}% of the walk`; etaCaption.textContent=routeProgress>.98?'Arrived':`${eta} min left`; let nextIndex=(currentRoute.points_of_interest || []).findIndex((poi)=>poi.id===nextPoiId); if(nextIndex<0) nextIndex=Math.min((currentRoute.points_of_interest || []).length-1,Math.floor(routeProgress*(currentRoute.points_of_interest || []).length)); const nextPoi=currentRoute.points_of_interest?.[nextIndex]; stopBadge.textContent=`Stop ${Math.max(1,nextIndex+1)} of ${(currentRoute.points_of_interest || []).length}`; timeBadge.textContent=`${elapsed}:00 / ${duration}:00`; if(nextPoi && !podcastCurrentChapter){ chapterTitle.textContent=nextPoi.name; chapterDescription.textContent=nextPoi.story || nextPoi.subtitle || 'A story is waiting at the next stop.'; } if(!podcastCurrentChapter) nextChapterTitle.textContent=currentRoute.points_of_interest?.[nextIndex+1]?.name || 'More stories ahead'; renderPoiList(); }
+      function setRoute(route,announce=true) { currentRoute=structuredClone(route); routeVersion+=1; routeProgress=0; podcastCurrentChapter=null; setPodcastState({state:'idle'}); renderRouteSummary(); renderMap(); renderPoiList(); updateProgress(0); if(announce) log(`Preview route changed to ${currentRoute.theme}.`); }
+      function renderRouteDiff(removed,added,preference='Architecture stories → music + counterculture') { routeDiff.hidden=false; removedStops.replaceChildren(); addedStops.replaceChildren(); for(const name of removed){const item=document.createElement('li');item.textContent=name;removedStops.append(item);} for(const name of added){const item=document.createElement('li');item.textContent=name;addedStops.append(item);} preferenceDelta.textContent=preference; }
+      function sendRehearsalControl(stage) { if(!socket || socket.readyState!==WebSocket.OPEN)return; const payload={type:'demo_theme',theme:'music',interests:['music','counterculture']}; if(stage==='v2')payload.topic='Can we talk about music?'; if(stage==='v3')payload.memory='I really like this mural'; if(stage==='v4')payload.insert_nearby_food=true; try{socket.send(JSON.stringify(payload));log(`Sent ${stage.toUpperCase()} rehearsal state to the relay.`);}catch{} }
+      function showDetourDiff() { routeDiffEyebrow.textContent='V3B · route deviation'; routeDiffTitle.textContent='Rerouted via Berwick Street'; routeDiffCopy.textContent='The route service avoided backtracking and kept the arrival time and interest fit on target.'; renderRouteDiff(['Old route after the mural'],['Berwick Street','Soho Square'],'No backtracking · Arrival time preserved · Interest fit preserved'); }
+      function commitDetourPreview(message='V3B · Route rerouted via Berwick Street. Arrival time and interest fit stay on target.') { routeDeviationPending=null; currentTheme='music'; setRoute(routePresets.detour); updateUserDot(SIMULATED_DEVIATION_LOCATION); showDetourDiff(); rehearsalStatus.textContent=message; setPodcastState({state:'playing',current_chapter:routePresets.detour.points_of_interest[1],next_chapter:routePresets.detour.points_of_interest[2]}); toolStatusEl.className='tool-status'; toolStatusEl.textContent='Route committed · Sidewalk is continuing the story.'; }
+      function sendRouteDeviation() {
+        const location=SIMULATED_DEVIATION_LOCATION;
+        updateUserDot(location);
+        const seq=++locationSequence, timestamp=new Date().toISOString();
+        const payload={type:'route_deviation',route_version:routeVersion,seq,sequence:seq,timestamp,latitude:location.latitude,longitude:location.longitude,current_location:location,location,accuracy_m:8,distance_from_route_m:SIMULATED_DEVIATION_DISTANCE_M,heading:SIMULATED_DEVIATION_HEADING_DEG,heading_deg:SIMULATED_DEVIATION_HEADING_DEG,reason:'wrong_direction'};
+        routeDeviationPending={routeVersion,seq};
+        rehearsalStatus.textContent='Wrong turn detected · recalculating…';
+        routeDiff.hidden=true;
+        setPodcastState({state:'listening'});
+        toolStatusEl.className='tool-status is-active';
+        toolStatusEl.textContent='Recalculating route from your current location…';
+        if(!socket || socket.readyState!==WebSocket.OPEN){ commitDetourPreview('V3B · Offline preview: the route rerouted via Berwick Street.'); return; }
+        setStatus('Live — recalculating route…');
+        try { socket.send(JSON.stringify(payload)); log(`Sent route deviation ${seq} at ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}.`); } catch(error) { routeDeviationPending=null; toolStatusEl.className='tool-status'; toolStatusEl.textContent='Route recalculation could not be sent.'; setStatus(`Warning: ${error.message}`); log('Route deviation could not reach the relay.'); }
+      }
+      function updateRehearsalButtons(stage) { for(const button of rehearsalButtons) button.setAttribute('aria-pressed',String(button.id === `rehearsal-${stage}`)); }
+      function applyRehearsalStage(stage) {
+        rehearsalStage=stage; updateRehearsalButtons(stage); routeDeviationPending=null;
+        if(stage==='base'){ currentTheme='architecture'; setRoute(routePresets.architecture); routeDiff.hidden=true; rehearsalStatus.textContent='V1 · 25-minute Chinatown to Soho route for Tudor architecture, history, and Chinese food.'; setPodcastState({state:'playing',current_chapter:routePresets.architecture.points_of_interest[0],next_chapter:routePresets.architecture.points_of_interest[1]}); return; }
+        if(stage==='v2'){ currentTheme='music'; setRoute(routePresets.music); renderRouteDiff(['St Anne’s Soho','Berwick Street'],['Old Compton Street','Ronnie Scott’s','Spirit of Soho Mural'],'Architecture ↓ · Music ↑ · Counterculture ↑; 25-minute limit unchanged'); rehearsalStatus.textContent='V2 · Nearby search from your current location re-ranked the route for music and counterculture.'; setPodcastState({state:'playing',current_chapter:routePresets.music.points_of_interest[0],next_chapter:routePresets.music.points_of_interest[1]}); sendRehearsalControl(stage); return; }
+        if(stage==='v3'){ currentTheme='music'; setRoute(routePresets.mural); routeDiff.hidden=false; rehearsalStatus.textContent='V3A · Memory saved: photo + Spirit of Soho Mural + “I really like this”; route unchanged.'; setPodcastState({state:'playing',current_chapter:routePresets.mural.points_of_interest[2],next_chapter:routePresets.mural.points_of_interest[3]}); sendRehearsalControl(stage); return; }
+        if(stage==='v3b'){ currentTheme='music'; routeDiff.hidden=true; sendRouteDeviation(); return; }
+        if(stage==='v4'){ currentTheme='music'; setRoute(routePresets.food); routeDiff.hidden=false; rehearsalStatus.textContent='V4 · A food stop fits the remaining time and keeps the podcast moving.'; setPodcastState({state:'playing',current_chapter:routePresets.food.points_of_interest[1],next_chapter:routePresets.food.points_of_interest[2]}); sendRehearsalControl(stage); }
+      }
+      function selectTheme(theme) { currentTheme=theme; setRoute(routePresets[theme]); if(socket?.readyState===WebSocket.OPEN){ socket.send(JSON.stringify({type:'demo_theme',theme})); log(`Requested a ${theme} route from the relay.`); } }
+      function sendLocation(location) { if(!socket || socket.readyState!==WebSocket.OPEN || !location) return; locationSequence+=1; socket.send(JSON.stringify({type:'location_update',seq:locationSequence,timestamp:new Date().toISOString(),...location,accuracy_m:5})); }
+      function simulationTick() { simulationProgress=Math.min(1,simulationProgress+.012); const location=interpolateLocation(currentRoute.geometry || [],simulationProgress); updateProgress(simulationProgress,location); sendLocation(location); if(simulationProgress>=1) stopSimulation(); }
+      function stopSimulation() { clearInterval(simulationTimer); simulationTimer=null; simulateBtn.setAttribute('aria-pressed','false'); simulateBtn.textContent='Start simulation'; }
+      function toggleSimulation() { if(simulationTimer){stopSimulation();return;} if(simulationProgress>=1) simulationProgress=0; simulationTimer=setInterval(simulationTick,850); simulateBtn.setAttribute('aria-pressed','true'); simulateBtn.textContent='Pause simulation'; simulationTick(); }
+      function appendSamples(first,second) { const combined=new Float32Array(first.length+second.length); combined.set(first); combined.set(second,first.length); return combined; }
+      function downsample(samples,sourceRate) { if(sourceRate===INPUT_SAMPLE_RATE)return samples; if(!captureResampler || captureResampler.sourceRate!==sourceRate)captureResampler={sourceRate,buffer:new Float32Array(0),offset:0}; captureResampler.buffer=appendSamples(captureResampler.buffer,samples); const ratio=sourceRate/INPUT_SAMPLE_RATE,output=[]; while(captureResampler.offset+1<captureResampler.buffer.length){const index=Math.floor(captureResampler.offset),fraction=captureResampler.offset-index; output.push(captureResampler.buffer[index]+(captureResampler.buffer[index+1]-captureResampler.buffer[index])*fraction); captureResampler.offset+=ratio;} const consumed=Math.floor(captureResampler.offset); if(consumed>0){captureResampler.buffer=captureResampler.buffer.slice(consumed);captureResampler.offset-=consumed;} return Float32Array.from(output); }
+      function encodePcm16(samples) { const bytes=new ArrayBuffer(samples.length*2),view=new DataView(bytes); for(let index=0;index<samples.length;index+=1){const sample=Math.max(-1,Math.min(1,samples[index]));view.setInt16(index*2,sample<0?sample*0x8000:sample*0x7fff,true);} return bytes; }
+      function attachMicrophone() { if(!stream || !captureContext || !socket || !audioReady)return; captureSource=captureContext.createMediaStreamSource(stream); captureProcessor=captureContext.createScriptProcessor(512,1,1); captureMute=captureContext.createGain(); captureMute.gain.value=0; captureResampler=null; captureProcessor.onaudioprocess=(event)=>{if(!audioReady || !socket || socket.readyState!==WebSocket.OPEN || muted)return; const input=event.inputBuffer.getChannelData(0); const samples=downsample(input,captureContext.sampleRate); if(samples.length)socket.send(encodePcm16(samples));}; captureSource.connect(captureProcessor); captureProcessor.connect(captureMute); captureMute.connect(captureContext.destination); captureContext.resume().catch(()=>{}); }
+      function playPcm16(data) { if(!playbackContext || data.byteLength%2!==0){if(data.byteLength%2!==0)log('Ignored an invalid odd-length PCM audio frame.');return;} const samples=new Int16Array(data),buffer=playbackContext.createBuffer(1,samples.length,OUTPUT_SAMPLE_RATE),channel=buffer.getChannelData(0); for(let index=0;index<samples.length;index+=1)channel[index]=samples[index]<0?samples[index]/0x8000:samples[index]/0x7fff; const source=playbackContext.createBufferSource(); source.buffer=buffer; source.connect(playbackContext.destination); const startAt=Math.max(playbackContext.currentTime+.01,playbackNextTime); playbackNextTime=startAt+buffer.duration; playbackSources.add(source); source.onended=()=>{playbackSources.delete(source);source.disconnect();}; source.start(startAt); playbackContext.resume().catch(()=>{}); }
+      function clearPlayback() { for(const source of playbackSources){try{source.stop();}catch{} source.disconnect();} playbackSources.clear(); playbackNextTime=0; }
+      function applyRouteUpdate(event) { const pendingDeviation=routeDeviationPending; const geometry=Array.isArray(event.geometry)?event.geometry:Array.isArray(event.polyline)?event.polyline:null; currentRoute={...currentRoute,...(routePresets[event.theme] || {}),...event,...(geometry?{geometry}:{})}; if(!Array.isArray(currentRoute.geometry))currentRoute.geometry=routePresets[currentTheme].geometry; currentTheme=currentRoute.theme || currentTheme; routeVersion=event.route_version || routeVersion+1; podcastCurrentChapter=null; setPodcastState({state:'idle'}); renderRouteSummary(); renderMap(); renderPoiList(); updateProgress(routeProgress); if(pendingDeviation){ routeDeviationPending=null; showDetourDiff(); rehearsalStatus.textContent=`V3B · Reroute committed via ${currentRoute.route_label || 'Berwick Street'}. The podcast will explain it after the current speech turn.`; toolStatusEl.className='tool-status'; toolStatusEl.textContent='Route committed · explanation queued next.'; setStatus('Live — route updated; keep walking or start talking'); log(`Reroute committed at route version ${routeVersion}.`); } else { log(`Route updated: ${currentRoute.theme || currentTheme}.`); } }
+      function handleRouteDeviationError(code,message) { if(code!=='stale_route_version' && code!=='invalid_route_deviation')return; routeDeviationPending=null; rehearsalStatus.textContent=`Wrong turn could not be applied · ${message}`; toolStatusEl.className='tool-status'; toolStatusEl.textContent='Route recalculation needs another location update.'; }
+      function handleEvent(event) { if(!event || typeof event.type!=='string')return; switch(event.type){case 'ready': if(event.protocol!==WS_PROTOCOL_VERSION || event.encoding!=='pcm16le' || event.channels!==1 || event.input_sample_rate!==INPUT_SAMPLE_RATE || event.output_sample_rate!==OUTPUT_SAMPLE_RATE)throw new Error('The relay returned an unsupported audio protocol.'); audioReady=true;attachMicrophone();setLiveState(true);setStatus(`Live — ${event.model || 'Gemini'} · ${event.voice || 'Sidewalk'}`);log(`Connected to ${event.model || 'Gemini Live'}; audio is ready.`);socket.send(JSON.stringify({type:'demo_plan',theme:currentTheme,duration_minutes:currentRoute.duration_minutes || 45}));break; case 'route_update':applyRouteUpdate(event);break; case 'walk_ack':if(event.action==='route_deviation'){if(routeDeviationPending){toolStatusEl.className='tool-status is-active';toolStatusEl.textContent='Route service accepted the deviation · waiting for the new route…';log('Route deviation accepted; waiting for the committed route.');}else{toolStatusEl.className='tool-status';toolStatusEl.textContent='Route committed · Sidewalk is continuing the story.';log('Route deviation accepted and route committed.');}}else{log(`Walk action acknowledged: ${event.action || 'unknown'}.`);}break; case 'walk_progress':{const location=event.current_location || (Number.isFinite(Number(event.latitude)) && Number.isFinite(Number(event.longitude)) ? {latitude:Number(event.latitude),longitude:Number(event.longitude)} : null); const progress=Number.isFinite(Number(event.progress)) ? Number(event.progress) : progressForLocation(location); updateProgress(progress,location,event.next_poi_id || event.nearest_poi_id);break;} case 'podcast_state':setPodcastState(event);log(`Podcast state: ${event.state || event.status || 'idle'}.`);break; case 'transcript':if(event.index===undefined || !event.speaker)return;transcripts.set(String(event.index),{speaker:event.speaker,text:event.text || ''});renderTranscripts();break; case 'tool_call':toolStatusEl.className='tool-status is-active';toolStatusEl.textContent=`Calling ${event.name || 'walk tool'}…`;log(`Tool call: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);break; case 'tool_result':toolStatusEl.className='tool-status';toolStatusEl.textContent=`Completed ${event.name || 'walk tool'}.`;log(`Tool result: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);break; case 'clear_output':clearPlayback();if(event.reason==='barge_in' || event.reason==='client_interrupt')setPodcastState({state:'listening'});log(`Assistant output cleared${event.reason ? ` (${event.reason})` : ''}.`);break; case 'turn_complete':setStatus(routeDeviationPending?'Live — recalculating route…':'Live — keep walking or start talking');log('Turn complete.');break; case 'reconnected':setStatus('Reconnected — keep walking');log(`Relay reconnected${event.state_restored ? ' with state restored' : ''}.`);break; case 'pong':break; case 'error':{const message=event.message || 'The Gemini relay reported an error.';log(`Error${event.code ? ` [${event.code}]` : ''}: ${message}`);if(event.fatal)stop(`Failed: ${message}`,false);else{handleRouteDeviationError(event.code,message);setStatus(`Warning: ${message}`);}break;} default:log(`Relay event: ${event.type}`);} }
+      function cleanupAudio() { audioReady=false; if(captureProcessor){captureProcessor.onaudioprocess=null;captureProcessor.disconnect();captureProcessor=null;} if(captureSource){captureSource.disconnect();captureSource=null;} if(captureMute){captureMute.disconnect();captureMute=null;} clearPlayback(); if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null;} const contexts=[captureContext,playbackContext];captureContext=null;playbackContext=null;for(const context of contexts)if(context && context.state!=='closed')context.close().catch(()=>{}); }
+      function stop(message='Walk paused.',notifyServer=true) { if(stopping)return;stopping=true;stopSimulation();clearTimeout(connectionTimer);connectionTimer=null;const activeSocket=socket;socket=null;audioReady=false;if(activeSocket && activeSocket.readyState<WebSocket.CLOSING){if(notifyServer && activeSocket.readyState===WebSocket.OPEN)try{activeSocket.send(JSON.stringify({type:'close'}));}catch{} try{activeSocket.close(1000,'Client stopped');}catch{}} cleanupAudio();stopBtn.disabled=true;stopPanelBtn.disabled=true;muteBtn.disabled=true;startBtn.disabled=false;startPanelBtn.disabled=false;setLiveState(false);setStatus(message);stopping=false; }
+      async function start() { if(socket)return;startBtn.disabled=true;startPanelBtn.disabled=true;stopBtn.disabled=false;stopPanelBtn.disabled=false;muteBtn.disabled=false;transcripts.clear();renderTranscripts();toolStatusEl.className='tool-status';toolStatusEl.textContent='Connecting to the walk…';logEl.replaceChildren();setStatus('Checking Gemini setup…');const setupResponse=await fetch('/gemini/health');if(!setupResponse.ok)throw new Error('Cannot reach the local server.');const setup=await setupResponse.json();if(!setup.configured)throw new Error('Add GOOGLE_API_KEY to .env, save it, then try again.');if(!navigator.mediaDevices?.getUserMedia)throw new Error('Open this page on localhost or HTTPS to use the microphone.');setStatus('Requesting microphone…');stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,sampleRate:INPUT_SAMPLE_RATE,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});captureContext=new AudioContext({sampleRate:INPUT_SAMPLE_RATE});playbackContext=new AudioContext();socket=new WebSocket(websocketUrl());socket.binaryType='arraybuffer';const currentSocket=socket;socket.onopen=()=>{if(socket===currentSocket)setStatus('Connecting to your walking companion…');};socket.onmessage=async(message)=>{if(socket!==currentSocket)return;if(typeof message.data==='string'){try{handleEvent(JSON.parse(message.data));}catch(error){stop(`Failed: ${error.message}`,false);}return;}const data=message.data instanceof ArrayBuffer?message.data:await message.data.arrayBuffer();if(socket===currentSocket)playPcm16(data);};socket.onerror=()=>{if(socket===currentSocket)setStatus('Connection error…');};socket.onclose=()=>{if(socket===currentSocket)stop('Connection closed.',false);};connectionTimer=setTimeout(()=>{if(socket===currentSocket && !audioReady)stop('Gemini connection timed out.',false);},20000); }
+      function toggleMute() {
+        muted=!muted;
+        muteBtn.setAttribute('aria-pressed',String(muted));
+        muteBtn.setAttribute('aria-label',muted?'Unmute microphone':'Mute microphone');
+        setStatus(muted?'Microphone muted — audio is still playing':'Live — keep walking or start talking');
+      }
+      function enterWalk() {
+        setScreen('walking');
+        const firstStop=currentRoute.points_of_interest?.[0];
+        if(firstStop)setPodcastState({state:'playing',current_chapter:firstStop,next_chapter:currentRoute.points_of_interest?.[1]});
+        start().catch((error)=>stop(`Failed: ${error.message}`));
+      }
+      function leaveWalk() {
+        stop();
+        setScreen('preview');
+      }
+      for(const group of choiceGroups){
+        group.addEventListener('click',(event)=>{
+          const button=event.target.closest('.choice-chip');
+          if(!button || !group.contains(button))return;
+          if(group.dataset.multiple==='true'){
+            button.setAttribute('aria-pressed',String(button.getAttribute('aria-pressed')!=='true'));
+            return;
+          }
+          for(const choice of group.querySelectorAll('.choice-chip'))choice.setAttribute('aria-pressed',String(choice===button));
+        });
+      }
+      walkForm.addEventListener('submit',(event)=>{event.preventDefault();beginWalkPlan();});
+      quizToggle.addEventListener('click',()=>quizToggle.setAttribute('aria-pressed',String(quizToggle.getAttribute('aria-pressed')!=='true')));
+      backToSetupBtn.addEventListener('click',()=>{clearWritingTimers();stop('Walk closed.');setScreen('configure');});
+      startBtn.addEventListener('click',enterWalk);
+      startPanelBtn.addEventListener('click',()=>{if(socket)return;enterWalk();});
+      stopBtn.addEventListener('click',leaveWalk);
+      stopPanelBtn.addEventListener('click',leaveWalk);
+      muteBtn.addEventListener('click',toggleMute);
+      simulateBtn.addEventListener('click',toggleSimulation);
+      takePhotoBtn.addEventListener('click',()=>photoInput.click());
+      photoInput.addEventListener('change',()=>{
+        const [file]=photoInput.files;
+        if(!file)return;
+        if(photoObjectUrl)URL.revokeObjectURL(photoObjectUrl);
+        photoObjectUrl=URL.createObjectURL(file);
+        photoPreview.src=photoObjectUrl;
+        photoPreview.hidden=false;
+        photoPreview.alt='Photo taken at the current stop';
+        applyRehearsalStage('v3');
+        rehearsalStatus.textContent='Photo captured locally · the mural memory is now attached to this walk.';
+        setStatus('Photo ready — the model can check it with the current place and GPS.');
+      });
+      skipPhotoBtn.addEventListener('click',()=>{
+        document.querySelector('#camera-frame span').textContent='Photo skipped — the walk can continue';
+        setStatus('Photo skipped — keep walking or start talking.');
+      });
+      document.getElementById('architecture').addEventListener('click',()=>applyRehearsalStage('base'));
+      document.getElementById('music').addEventListener('click',()=>applyRehearsalStage('v2'));
+      document.getElementById('rehearsal-v2').addEventListener('click',()=>applyRehearsalStage('v2'));
+      document.getElementById('rehearsal-v3').addEventListener('click',()=>applyRehearsalStage('v3'));
+      document.getElementById('rehearsal-v3b').addEventListener('click',()=>applyRehearsalStage('v3b'));
+      document.getElementById('rehearsal-v4').addEventListener('click',()=>applyRehearsalStage('v4'));
+      window.addEventListener('pagehide',()=>stop('Closed',true));
+      setRoute(currentRoute,false);
+      setScreen('configure');
+      fetch('/gemini/health').then((response)=>{if(!response.ok)throw new Error('Server unavailable');return response.json();}).then((setup)=>setStatus(setup.configured?`Ready — ${setup.model} · ${setup.voice}`:'Demo ready — add GOOGLE_API_KEY to enable live voice.')).catch(()=>setStatus('Demo ready — start the local server to enable live voice.'));
+    </script>
+  </body>
+</html>
