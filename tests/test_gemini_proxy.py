@@ -7,6 +7,8 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import UserError
+from pydantic_ai.messages import SystemPromptPart
 
 from gemini_proxy import (
     GeminiConfigurationError,
@@ -15,6 +17,7 @@ from gemini_proxy import (
     create_gemini_router,
     make_gemini_realtime,
 )
+from walk_demo import WalkSessionDeps
 
 
 def empty_configuration() -> Mapping[str, str | None]:
@@ -39,10 +42,19 @@ class FakeWebSocket:
 class FakeSession:
     def __init__(self) -> None:
         self.interruptions: list[int] = []
+        self.enqueued: list[tuple[SystemPromptPart, str]] = []
 
     async def interrupt(self, *, played_bytes: int) -> bool:
         self.interruptions.append(played_bytes)
         return True
+
+    def enqueue(self, prompt: SystemPromptPart, *, priority: str) -> None:
+        self.enqueued.append((prompt, priority))
+
+
+class UnsupportedInterruptSession(FakeSession):
+    async def interrupt(self, *, played_bytes: int) -> bool:
+        raise UserError("This realtime model does not support interruption.")
 
 
 class GeminiProxyTest(unittest.TestCase):
@@ -115,6 +127,59 @@ class MicrophoneProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(websocket.events[0]["code"], "invalid_audio")
         self.assertEqual(websocket.events[1]["code"], "invalid_json")
+
+    async def test_demo_plan_starts_the_first_podcast_chapter(self) -> None:
+        websocket = FakeWebSocket(
+            [
+                {
+                    "type": "websocket.receive",
+                    "text": '{"type":"demo_plan","theme":"music"}',
+                },
+                {"type": "websocket.receive", "text": '{"type":"close"}'},
+            ]
+        )
+        session = FakeSession()
+        client = RelayClient(websocket)  # type: ignore[arg-type]
+        deps = WalkSessionDeps()
+
+        chunks = [
+            chunk
+            async for chunk in _receive_microphone(  # type: ignore[arg-type]
+                websocket, session, client, deps
+            )
+        ]
+
+        self.assertEqual(chunks, [])
+        self.assertEqual(len(session.enqueued), 1)
+        prompt, priority = session.enqueued[0]
+        self.assertIn("We are at", prompt.content)
+        self.assertEqual(priority, "asap")
+        self.assertEqual(deps.state.podcast_status, "playing")
+        self.assertEqual(websocket.events[-1]["type"], "podcast_state")
+        self.assertEqual(websocket.events[-1]["state"], "playing")
+
+    async def test_unsupported_explicit_interrupt_is_not_fatal(self) -> None:
+        websocket = FakeWebSocket(
+            [
+                {
+                    "type": "websocket.receive",
+                    "text": '{"type":"interrupt","played_bytes":640}',
+                },
+                {"type": "websocket.receive", "text": '{"type":"close"}'},
+            ]
+        )
+        client = RelayClient(websocket)  # type: ignore[arg-type]
+
+        chunks = [
+            chunk
+            async for chunk in _receive_microphone(  # type: ignore[arg-type]
+                websocket, UnsupportedInterruptSession(), client
+            )
+        ]
+
+        self.assertEqual(chunks, [])
+        self.assertEqual(websocket.events[0]["code"], "interrupt_unsupported")
+        self.assertFalse(websocket.events[0]["fatal"])
 
 
 if __name__ == "__main__":

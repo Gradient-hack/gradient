@@ -1,4 +1,4 @@
-"""FastAPI WebSocket relay between Flutter PCM audio and Pydantic AI Gemini Live."""
+"""FastAPI WebSocket relay between browser PCM audio and Gemini Live."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket
 from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRealtime
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -29,6 +30,8 @@ from pydantic_ai.realtime.google import (
 )
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
+from walk_demo import WalkSessionDeps
+
 logger = logging.getLogger("uvicorn.error")
 
 DEFAULT_MODEL = "google:gemini-2.5-flash-native-audio-latest"
@@ -44,7 +47,7 @@ class GeminiConfigurationError(RuntimeError):
 
 @dataclass
 class RelayClient:
-    """Serialize concurrent binary and JSON writes to one Flutter WebSocket."""
+    """Serialize concurrent binary and JSON writes to one browser WebSocket."""
 
     websocket: WebSocket
     _send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -59,7 +62,10 @@ class RelayClient:
 
 
 def make_gemini_realtime(
-    agent: Agent[Any, Any], configuration: Mapping[str, str | None]
+    agent: Agent[Any, Any],
+    configuration: Mapping[str, str | None],
+    *,
+    deps: WalkSessionDeps | None = None,
 ) -> tuple[AgentRealtime[Any], str]:
     """Build a Gemini realtime agent using values reloaded from `.env`."""
 
@@ -85,13 +91,30 @@ def make_gemini_realtime(
             "prefix_padding_ms": 100,
             "silence_duration_ms": 300,
         },
+        reconnect={
+            "max_attempts": 3,
+            "max_reconnects": 50,
+            "base_delay": 0.5,
+            "max_delay": 30,
+            "jitter": True,
+        },
+        google_context_compression={
+            "trigger_tokens": 25_000,
+            "target_tokens": 8_000,
+        },
+        google_enable_session_resumption=True,
     )
-    return agent.realtime(model, model_settings=settings), configured_model
+    return (
+        agent.realtime(
+            model,
+            deps=deps or WalkSessionDeps(),
+            model_settings=settings,
+        ),
+        configured_model,
+    )
 
 
-async def _forward_audio(
-    audio: AsyncIterator[bytes], client: RelayClient
-) -> None:
+async def _forward_audio(audio: AsyncIterator[bytes], client: RelayClient) -> None:
     async for chunk in audio:
         await client.send_audio(chunk)
 
@@ -110,8 +133,24 @@ async def _forward_transcripts(
 
 
 async def _forward_session_events(
-    session: RealtimeSession, client: RelayClient
+    session: RealtimeSession, client: RelayClient, deps: WalkSessionDeps | None = None
 ) -> None:
+    deps = deps or WalkSessionDeps()
+
+    async def send_podcast_state() -> None:
+        event = deps.state.podcast_event()
+        await client.send_event(event.pop("type"), **event)
+
+    async def schedule_next_chapter() -> None:
+        prompt = deps.state.start_next_chapter()
+        if prompt is not None:
+            try:
+                session.enqueue(prompt, priority="asap")
+            except (RuntimeError, UserError):
+                deps.state.interrupt_podcast()
+                logger.debug("Could not enqueue podcast chapter", exc_info=True)
+        await send_podcast_state()
+
     async for event in session:
         if isinstance(event, FunctionToolCallEvent):
             await client.send_event(
@@ -126,13 +165,15 @@ async def _forward_session_events(
                 call_id=event.tool_call_id,
             )
         elif isinstance(event, RealtimeResponseInterruptedEvent):
+            deps.state.interrupt_podcast()
             await client.send_event("clear_output", reason="barge_in")
+            await send_podcast_state()
         elif isinstance(event, RealtimeTurnCompleteEvent):
             await client.send_event("turn_complete")
+            deps.state.complete_current_chapter()
+            await schedule_next_chapter()
         elif isinstance(event, RealtimeSessionReconnectEvent):
-            await client.send_event(
-                "reconnected", state_restored=event.state_restored
-            )
+            await client.send_event("reconnected", state_restored=event.state_restored)
         elif isinstance(event, RealtimeSessionErrorEvent):
             await client.send_event(
                 "error",
@@ -146,6 +187,7 @@ async def _receive_microphone(
     websocket: WebSocket,
     session: RealtimeSession,
     client: RelayClient,
+    deps: WalkSessionDeps | None = None,
 ) -> AsyncIterator[bytes]:
     """Yield PCM frames and process client control messages on the same socket."""
 
@@ -179,6 +221,14 @@ async def _receive_microphone(
                 fatal=False,
             )
             continue
+        if not isinstance(control, dict):
+            await client.send_event(
+                "error",
+                code="invalid_control",
+                message="Control messages must be JSON objects.",
+                fatal=False,
+            )
+            continue
 
         control_type = control.get("type")
         if control_type == "ping":
@@ -195,9 +245,94 @@ async def _receive_microphone(
                     fatal=False,
                 )
                 continue
-            interrupted = await session.interrupt(played_bytes=played_bytes)
+            try:
+                interrupted = await session.interrupt(played_bytes=played_bytes)
+            except UserError as error:
+                await client.send_event(
+                    "error",
+                    code="interrupt_unsupported",
+                    message=str(error),
+                    fatal=False,
+                )
+                continue
             if interrupted:
                 await client.send_event("clear_output", reason="client_interrupt")
+        elif control_type == "location_update":
+            if deps is None:
+                await client.send_event(
+                    "error",
+                    code="walk_unavailable",
+                    message="Walk state is unavailable for this session.",
+                    fatal=False,
+                )
+                continue
+            try:
+                progress, narration = deps.location_from_control(control)
+            except ValueError as error:
+                await client.send_event(
+                    "error",
+                    code="invalid_location",
+                    message=str(error),
+                    fatal=False,
+                )
+                continue
+            await client.send_event(
+                progress.pop("type"),
+                **progress,
+            )
+            if narration is not None:
+                try:
+                    session.enqueue(narration, priority="when_idle")
+                except (RuntimeError, UserError):
+                    # The provider can close between receiving a location fix
+                    # and enqueueing the narration. The next connection can
+                    # continue from a fresh session safely.
+                    logger.debug("Could not enqueue POI narration", exc_info=True)
+        elif control_type in {"demo_plan", "demo_theme"}:
+            if deps is None:
+                await client.send_event(
+                    "error",
+                    code="walk_unavailable",
+                    message="Walk state is unavailable for this session.",
+                    fatal=False,
+                )
+                continue
+            try:
+                if control_type == "demo_plan":
+                    summary = await deps.plan_walk(
+                        duration_minutes=control.get("duration_minutes", 25),
+                        theme=control.get("theme"),
+                        interests=control.get("interests"),
+                        loop=control.get("loop", True),
+                    )
+                else:
+                    summary = await deps.revise_walk(
+                        theme=control.get("theme"),
+                        interests=control.get("interests"),
+                        topic=control.get("topic"),
+                        memory=control.get("memory"),
+                        deviation=control.get("deviation"),
+                        insert_nearby_food=control.get("insert_nearby_food", False),
+                        current_location=control.get("current_location"),
+                        reroute_if_needed=control.get("reroute_if_needed", True),
+                    )
+            except (TypeError, ValueError) as error:
+                await client.send_event(
+                    "error",
+                    code="invalid_walk_control",
+                    message=str(error),
+                    fatal=False,
+                )
+                continue
+            await client.send_event("walk_ack", action=control_type, summary=summary)
+            chapter_prompt = deps.state.start_next_chapter()
+            try:
+                if chapter_prompt is not None:
+                    session.enqueue(chapter_prompt, priority="asap")
+            except (RuntimeError, UserError):
+                logger.debug("Could not enqueue demo walk response", exc_info=True)
+            podcast_event = deps.state.podcast_event()
+            await client.send_event(podcast_event.pop("type"), **podcast_event)
         else:
             await client.send_event(
                 "error",
@@ -211,8 +346,10 @@ async def _run_relay(
     websocket: WebSocket,
     realtime: AgentRealtime[Any],
     model_name: str,
+    deps: WalkSessionDeps | None = None,
 ) -> None:
     client = RelayClient(websocket)
+    deps = deps or WalkSessionDeps()
     async with realtime.session(handle_barge_in=True) as session:
         # Register tap views before announcing readiness so no first-turn audio or
         # transcript can arrive between the client's first frame and subscription.
@@ -227,26 +364,28 @@ async def _run_relay(
             encoding="pcm16le",
             channels=1,
         )
+        route_event = deps.state.route_event()
+        await client.send_event(route_event.pop("type"), **route_event)
+        podcast_event = deps.state.podcast_event()
+        await client.send_event(podcast_event.pop("type"), **podcast_event)
 
         tasks = {
             asyncio.create_task(
-                session.send_audio(_receive_microphone(websocket, session, client)),
+                session.send_audio(
+                    _receive_microphone(websocket, session, client, deps)
+                ),
                 name="gemini-microphone",
             ),
-            asyncio.create_task(
-                _forward_audio(audio, client), name="gemini-playback"
-            ),
+            asyncio.create_task(_forward_audio(audio, client), name="gemini-playback"),
             asyncio.create_task(
                 _forward_transcripts(transcripts, client),
                 name="gemini-transcripts",
             ),
             asyncio.create_task(
-                _forward_session_events(session, client), name="gemini-events"
+                _forward_session_events(session, client, deps), name="gemini-events"
             ),
         }
-        done, pending = await asyncio.wait(
-            tasks, return_when=asyncio.FIRST_COMPLETED
-        )
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
@@ -277,11 +416,19 @@ def create_gemini_router(
     async def voice_socket(websocket: WebSocket) -> None:
         await websocket.accept()
         client = RelayClient(websocket)
+        deps = WalkSessionDeps()
+
+        async def send_walk_event(event: dict[str, Any]) -> None:
+            event = dict(event)
+            event_type = event.pop("type", "walk_event")
+            await client.send_event(event_type, **event)
+
+        deps.event_sink = send_walk_event
         try:
             realtime, model_name = make_gemini_realtime(
-                agent, configuration_loader()
+                agent, configuration_loader(), deps=deps
             )
-            await _run_relay(websocket, realtime, model_name)
+            await _run_relay(websocket, realtime, model_name, deps)
         except GeminiConfigurationError as error:
             await client.send_event(
                 "error",
@@ -293,7 +440,7 @@ def create_gemini_router(
             raise
         except RuntimeError as error:
             # Starlette raises RuntimeError when a peer disappears while a
-            # concurrent sender is finishing. Treat that like a normal hangup.
+            # concurrent sender is finishing. Treat that like a normal close.
             if websocket.client_state == WebSocketState.CONNECTED:
                 logger.exception("Gemini relay failed")
                 with suppress(RuntimeError, WebSocketDisconnect):

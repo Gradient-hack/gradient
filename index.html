@@ -3,382 +3,393 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pydantic AI — Gemini voice agent</title>
+    <meta name="theme-color" content="#f7f5f1" />
+    <title>Sidewalk — live walking podcast</title>
     <style>
-      body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 46rem; padding: 0 1rem; color: #111827; }
-      h1 { font-size: 1.4rem; }
-      button { padding: .55rem 1.1rem; margin-right: .5rem; border-radius: .5rem; border: 1px solid #d1d5db; cursor: pointer; }
-      button[disabled] { opacity: .5; cursor: default; }
-      #status { margin: 1rem 0; font-weight: 600; }
-      #tool-status { margin: 1rem 0; color: #374151; }
-      #transcript { white-space: pre-wrap; background: #f3f4f6; padding: 1rem; border-radius: .6rem; min-height: 6rem; }
-      #log { white-space: pre-wrap; background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: .6rem; min-height: 8rem; font-size: .85rem; }
-      .hint { color: #6b7280; }
-      section { margin-top: 1rem; }
-      section h2 { font-size: 1rem; margin-bottom: .5rem; }
+      :root { --paper:#f7f5f1; --card:#fffdfa; --ink:#242321; --muted:#77736c; --faint:#a9a49c; --line:#dfdbd3; --line-strong:#c9c3ba; --accent:#dc6548; --accent-dark:#b74c36; --accent-soft:#f5ddd5; --sage:#778576; --shadow:0 16px 42px rgba(50,45,38,.08); color-scheme:light; }
+      * { box-sizing:border-box; }
+      html { min-width:320px; background:var(--paper); }
+      body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:15px; line-height:1.45; }
+      button { border:0; border-radius:999px; cursor:pointer; font:inherit; transition:background-color .2s ease,border-color .2s ease,color .2s ease,transform .2s ease; }
+      button:focus-visible,a:focus-visible { outline:3px solid rgba(220,101,72,.42); outline-offset:3px; }
+      button:disabled { cursor:not-allowed; opacity:.46; }
+      .site-header { align-items:center; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; margin:0 auto; max-width:1440px; padding:22px 34px 19px; }
+      .wordmark { align-items:center; display:flex; gap:11px; letter-spacing:.13em; text-transform:uppercase; }
+      .wordmark-mark { background:var(--accent); border-radius:50%; display:inline-block; height:11px; position:relative; width:11px; }
+      .wordmark-mark::after { border:1px solid var(--accent); border-radius:50%; content:""; height:17px; left:-4px; position:absolute; top:-4px; width:17px; }
+      .wordmark strong { font-size:12px; font-weight:750; }
+      .header-note { align-items:center; color:var(--muted); display:flex; font-size:12px; gap:8px; }
+      .fake-badge,.live-badge { align-items:center; border:1px solid var(--line-strong); border-radius:999px; color:var(--muted); display:inline-flex; font-size:10px; font-weight:750; gap:6px; letter-spacing:.11em; padding:5px 9px; text-transform:uppercase; }
+      .fake-badge { background:#f2eee8; }
+      .fake-badge::before { background:var(--accent); border-radius:50%; content:""; height:5px; width:5px; }
+      .workspace { display:grid; gap:28px; grid-template-columns:minmax(0,1.24fr) minmax(330px,.76fr); margin:0 auto; max-width:1440px; padding:34px; }
+      .eyebrow { color:var(--accent-dark); font-size:11px; font-weight:800; letter-spacing:.14em; margin:0 0 9px; text-transform:uppercase; }
+      h1,h2,h3,p { margin-top:0; }
+      h1 { font-family:Georgia,"Times New Roman",serif; font-size:clamp(2rem,4vw,3.45rem); font-weight:400; letter-spacing:-.04em; line-height:1.02; margin-bottom:15px; max-width:12ch; }
+      h2 { font-family:Georgia,"Times New Roman",serif; font-size:1.5rem; font-weight:400; letter-spacing:-.025em; }
+      h3 { font-size:14px; margin-bottom:5px; }
+      .lede { color:var(--muted); font-size:16px; max-width:44rem; }
+      .route-column { min-width:0; }
+      .intro-row { align-items:end; display:flex; justify-content:space-between; margin-bottom:21px; }
+      .intro-row .lede { margin-bottom:0; }
+      .walk-brief { background:#f1eee8; border:1px solid var(--line); border-radius:14px; margin:-2px 0 18px; padding:14px 16px; }
+      .brief-heading { align-items:center; display:flex; justify-content:space-between; margin-bottom:10px; }
+      .brief-heading .eyebrow { margin:0; }
+      .brief-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr 1.5fr; }
+      .brief-grid div { border-left:1px solid var(--line-strong); padding-left:12px; }
+      .brief-grid div:first-child { border-left:0; padding-left:0; }
+      .brief-grid span { color:var(--muted); display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+      .brief-grid strong { display:block; font-size:12px; margin-top:3px; }
+      .map-card,.route-details,.podcast-panel { background:var(--card); border:1px solid var(--line); box-shadow:var(--shadow); }
+      .map-card { border-radius:18px; overflow:hidden; }
+      .map-header { align-items:center; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; padding:16px 19px; }
+      .map-header h2 { font-size:18px; margin:0; }
+      .map-header p { color:var(--muted); font-size:12px; margin:2px 0 0; }
+      .map-wrap { background:#edeae4; height:clamp(310px,42vw,485px); overflow:hidden; position:relative; }
+      .map-wrap svg { display:block; height:100%; width:100%; }
+      .map-street { fill:none; stroke:#d4d0c8; stroke-linecap:round; stroke-width:13; }
+      .map-street.small { stroke:#dedad2; stroke-width:7; }
+      .map-block { fill:#e5e1d9; stroke:#dbd6cd; stroke-width:1; }
+      .route-shadow { fill:none; stroke:rgba(183,76,54,.15); stroke-linecap:round; stroke-linejoin:round; stroke-width:13; }
+      .route-line { fill:none; stroke:var(--accent); stroke-linecap:round; stroke-linejoin:round; stroke-width:6; }
+      .poi-label { fill:#57524a; font-size:12px; font-weight:700; paint-order:stroke; stroke:#edeae4; stroke-width:5px; }
+      .user-dot { fill:var(--ink); stroke:var(--card); stroke-width:4; }
+      .user-pulse { fill:none; stroke:var(--accent); stroke-width:2; }
+      .map-key { align-items:center; background:rgba(255,253,250,.92); border:1px solid var(--line); border-radius:9px; bottom:15px; display:flex; font-size:11px; gap:12px; left:15px; padding:8px 10px; position:absolute; }
+      .key-item { align-items:center; display:flex; gap:5px; white-space:nowrap; }
+      .key-route { background:var(--accent); border-radius:3px; height:4px; width:18px; }
+      .key-user { background:var(--ink); border:2px solid var(--card); border-radius:50%; height:10px; width:10px; }
+      .route-details { border-radius:16px; display:grid; gap:19px; grid-template-columns:minmax(0,1fr) auto; margin-top:17px; padding:19px; }
+      .route-summary h2 { font-size:21px; margin-bottom:4px; }
+      .route-summary p { color:var(--muted); font-size:13px; margin-bottom:0; }
+      .stat-row { align-items:center; display:flex; gap:18px; margin-top:15px; }
+      .stat { border-left:1px solid var(--line); padding-left:15px; }
+      .stat:first-child { border-left:0; padding-left:0; }
+      .stat strong { display:block; font-size:16px; font-weight:700; }
+      .stat span { color:var(--muted); display:block; font-size:11px; margin-top:2px; }
+      .route-actions { align-items:end; display:flex; flex-direction:column; gap:9px; justify-content:center; }
+      .route-diff { background:#fffaf4; border:1px solid #e7c6b7; border-radius:15px; margin-top:14px; padding:16px 18px; }
+      .route-diff[hidden] { display:none; }
+      .diff-heading { align-items:start; display:flex; justify-content:space-between; }
+      .diff-heading .eyebrow { margin-bottom:5px; }
+      .diff-heading h2 { font-size:19px; margin:0; }
+      .route-diff > p { color:var(--muted); font-size:12px; margin:8px 0 13px; }
+      .diff-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr 1.2fr; }
+      .diff-grid > div { border-left:1px solid #ead8cc; padding-left:12px; }
+      .diff-grid > div:first-child { border-left:0; padding-left:0; }
+      .diff-label { color:var(--muted); display:block; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+      .diff-grid ul { list-style:none; margin:5px 0 0; padding:0; }
+      .diff-grid li { font-size:11px; margin-top:3px; }
+      .diff-grid li::before { color:var(--accent); content:'+'; font-weight:800; margin-right:5px; }
+      .diff-grid > div:first-child li::before { content:'−'; color:var(--muted); }
+      .diff-grid strong { display:block; font-size:11px; margin-top:5px; }
+      .button-primary { background:var(--accent); color:#fff; font-weight:750; padding:12px 17px; }
+      .button-primary:hover { background:var(--accent-dark); }
+      .button-secondary { background:var(--ink); color:#fff; padding:11px 16px; }
+      .button-quiet { background:transparent; border:1px solid var(--line-strong); color:var(--ink); padding:10px 14px; }
+      .button-quiet:hover { background:#f3eee8; border-color:var(--ink); }
+      .button-quiet[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-dark); }
+      .poi-section { margin-top:28px; }
+      .section-heading { align-items:baseline; display:flex; justify-content:space-between; margin-bottom:13px; }
+      .section-heading h2 { font-size:21px; margin:0; }
+      .section-heading span { color:var(--muted); font-size:12px; }
+      .poi-list { display:grid; gap:9px; list-style:none; margin:0; padding:0; }
+      .poi-item { align-items:center; background:rgba(255,253,250,.66); border:1px solid var(--line); border-radius:12px; display:grid; gap:13px; grid-template-columns:31px minmax(0,1fr) auto; padding:12px 13px; }
+      .poi-number { align-items:center; background:var(--accent-soft); border-radius:50%; color:var(--accent-dark); display:flex; font-size:11px; font-weight:800; height:27px; justify-content:center; width:27px; }
+      .poi-item.is-next { border-color:var(--accent); box-shadow:0 0 0 2px rgba(220,101,72,.1); }
+      .poi-item.is-visited .poi-number { background:var(--sage); color:#fff; }
+      .poi-copy strong { display:block; font-size:13px; }
+      .poi-copy span { color:var(--muted); display:block; font-size:11px; margin-top:2px; }
+      .poi-status { color:var(--muted); font-size:11px; text-align:right; white-space:nowrap; }
+      .poi-item.is-next .poi-status { color:var(--accent-dark); font-weight:750; }
+      .poi-item.is-visited .poi-status { color:var(--sage); }
+      .podcast-panel { border-radius:18px; min-height:600px; padding:21px; position:sticky; top:18px; }
+      .panel-header { align-items:start; display:flex; justify-content:space-between; }
+      .panel-header h2 { font-size:23px; margin:0; }
+      .live-badge { background:#f4eee7; border-color:#e7d6ca; color:var(--accent-dark); }
+      .live-badge::before { background:var(--accent); border-radius:50%; content:""; height:6px; width:6px; }
+      .live-badge.is-live::before { animation:blink 1.4s ease-in-out infinite; }
+      @keyframes blink { 50% { opacity:.25; } }
+      .connection-status { color:var(--muted); font-size:12px; margin:5px 0 21px; }
+      .chapter-card { background:#f4eee8; border:1px solid #e7dcd1; border-radius:14px; padding:17px; }
+      .podcast-state-row { align-items:center; display:flex; justify-content:space-between; margin-bottom:7px; }
+      .podcast-state-row .eyebrow { margin-bottom:0; }
+      .state-label { color:var(--accent-dark); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+      .state-label.is-listening { color:var(--sage); }
+      .state-label.is-completed { color:var(--muted); }
+      .auto-label { border:1px solid #e5d7cc; border-radius:999px; color:var(--muted); font-size:10px; padding:4px 7px; }
+      .chapter-card h3 { font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:400; letter-spacing:-.02em; margin-bottom:6px; }
+      .chapter-card p { color:var(--muted); font-size:12px; margin-bottom:14px; }
+      .podcast-hint { color:var(--muted); font-size:11px; line-height:1.45; margin:0 0 14px; }
+      .next-chapter { border-top:1px solid #e5d9cf; display:flex; flex-direction:column; gap:2px; margin:13px 0 14px; padding-top:11px; }
+      .next-chapter span { color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.11em; text-transform:uppercase; }
+      .next-chapter strong { font-size:12px; font-weight:650; }
+      .progress-track { background:#dfd5cb; border-radius:4px; height:5px; overflow:hidden; }
+      .progress-value { background:var(--accent); border-radius:inherit; height:100%; transition:width .25s ease; width:0%; }
+      .progress-caption { color:var(--muted); display:flex; font-size:11px; justify-content:space-between; margin-top:7px; }
+      .voice-controls { border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px; padding:16px 0; }
+      .voice-controls .button-primary { flex:1 1 155px; }
+      .voice-controls .button-quiet { flex:0 0 auto; }
+      .theme-controls { border-bottom:1px solid var(--line); padding:16px 0; }
+      .theme-heading { align-items:center; display:flex; justify-content:space-between; margin-bottom:10px; }
+      .theme-heading strong { font-size:12px; }
+      .theme-heading span { color:var(--muted); font-size:11px; }
+      .theme-buttons { display:flex; gap:7px; }
+      .theme-buttons button { border:1px solid var(--line-strong); color:var(--muted); flex:1; padding:8px 10px; }
+      .theme-buttons button[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-dark); font-weight:750; }
+      .rehearsal-controls { border-top:1px solid var(--line); margin-top:14px; padding-top:14px; }
+      .rehearsal-intro { color:var(--muted); font-size:11px; line-height:1.45; margin:0 0 10px; }
+      .rehearsal-buttons { display:grid; gap:7px; grid-template-columns:repeat(2,1fr); }
+      .rehearsal-buttons button { border:1px solid var(--line-strong); color:var(--muted); font-size:11px; padding:9px 8px; text-align:left; }
+      .rehearsal-buttons button[aria-pressed="true"] { background:var(--ink); border-color:var(--ink); color:#fff; }
+      .rehearsal-status { color:var(--muted); font-size:11px; line-height:1.4; margin:9px 0 0; }
+      .decision-card { background:#fffaf4; border:1px solid #e7c6b7; border-radius:10px; margin-top:10px; padding:10px; }
+      .decision-card[hidden] { display:none; }
+      .decision-card strong { display:block; font-size:11px; }
+      .decision-card p { color:var(--muted); font-size:11px; margin:3px 0 8px; }
+      .decision-actions { display:flex; gap:6px; }
+      .decision-actions button { font-size:10px; padding:7px 9px; }
+      .prompt-chip { background:#f8f6f2; border:1px dashed var(--line-strong); border-radius:9px; color:var(--muted); font-size:11px; line-height:1.4; margin-top:10px; padding:9px 10px; }
+      .prompt-chip q { color:var(--accent-dark); font-weight:700; }
+      .simulation { align-items:center; background:#f8f6f2; border:1px dashed var(--line-strong); border-radius:10px; display:flex; gap:10px; justify-content:space-between; margin-top:14px; padding:10px 11px; }
+      .simulation p { color:var(--muted); font-size:11px; margin:0; }
+      .simulation button { font-size:11px; padding:8px 11px; white-space:nowrap; }
+      .conversation-section { margin-top:17px; }
+      .conversation-heading { align-items:center; display:flex; justify-content:space-between; margin-bottom:8px; }
+      .conversation-heading h3 { margin:0; }
+      .conversation-heading span { color:var(--muted); font-size:11px; }
+      .transcript { background:#292a29; border-radius:11px; color:#f7f2e9; min-height:118px; max-height:185px; overflow:auto; padding:13px; }
+      .transcript p { border-bottom:1px solid rgba(255,255,255,.12); font-size:12px; margin:0; padding:0 0 8px; }
+      .transcript p+p { padding-top:8px; }
+      .transcript p:last-child { border-bottom:0; padding-bottom:0; }
+      .transcript .speaker { color:#f3997f; font-size:10px; font-weight:800; letter-spacing:.08em; margin-right:5px; text-transform:uppercase; }
+      .empty-state { color:#aaa59d; font-size:12px; font-style:italic; }
+      .activity { margin-top:15px; }
+      .activity-heading { align-items:center; display:flex; justify-content:space-between; margin-bottom:8px; }
+      .activity-heading h3 { margin:0; }
+      .activity-heading span { color:var(--muted); font-size:11px; }
+      .tool-status { background:#f8f6f2; border:1px solid var(--line); border-radius:9px; color:var(--muted); font-size:12px; min-height:37px; padding:9px 11px; }
+      .tool-status.is-active { color:var(--accent-dark); }
+      .event-log { color:var(--faint); font-size:10px; line-height:1.55; margin-top:7px; max-height:45px; overflow:auto; }
+      .sr-only { height:1px; margin:-1px; overflow:hidden; padding:0; position:absolute; width:1px; clip:rect(0,0,0,0); white-space:nowrap; }
+      @media (max-width:900px) { .workspace { grid-template-columns:1fr; } .podcast-panel { min-height:0; position:static; } }
+      @media (max-width:620px) { .site-header { padding:17px 17px 15px; } .header-note { font-size:0; } .header-note .fake-badge { font-size:9px; } .workspace { gap:19px; padding:24px 17px 35px; } .intro-row { align-items:start; display:block; margin-bottom:17px; } h1 { font-size:2.55rem; } .lede { font-size:14px; } .brief-grid { grid-template-columns:1fr 1fr; } .brief-grid div:nth-child(3) { border-left:0; grid-column:1 / -1; padding-left:0; } .map-wrap { height:330px; } .map-header { padding:14px; } .route-details { display:block; padding:15px; } .route-actions { align-items:stretch; flex-direction:row; margin-top:16px; } .route-actions button { flex:1; } .stat-row { gap:13px; } .stat { padding-left:11px; } .poi-item { grid-template-columns:29px minmax(0,1fr) auto; padding:10px; } .podcast-panel { padding:16px; } }
+      @media (max-width:620px) { .diff-grid { grid-template-columns:1fr 1fr; } .diff-grid > div:nth-child(3) { border-left:0; grid-column:1 / -1; padding-left:0; } }
+      @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } }
     </style>
   </head>
   <body>
-    <h1>Gemini Live voice agent</h1>
-    <p>
-      The browser streams microphone PCM audio through the local Pydantic AI relay. Gemini audio is
-      played locally, while Python runs the example tools on the server.
-    </p>
-    <p class="hint">Try: “What time is it in Tokyo?” or “What’s your refund policy?”</p>
-    <button id="start">Start call</button>
-    <button id="stop" disabled>Stop call</button>
-    <div id="status" role="status" aria-live="polite">Checking Gemini setup…</div>
-
-    <section>
-      <h2>Tool activity</h2>
-      <div id="tool-status">No tool activity yet.</div>
-    </section>
-    <section>
-      <h2>Transcript</h2>
-      <div id="transcript" role="log" aria-label="Conversation transcript"></div>
-    </section>
-    <section>
-      <h2>Connection events</h2>
-      <div id="log" role="log" aria-label="Connection events"></div>
-    </section>
-
+    <header class="site-header">
+      <div class="wordmark" aria-label="Sidewalk"><span class="wordmark-mark" aria-hidden="true"></span><strong>Sidewalk</strong></div>
+      <div class="header-note"><span>Live walking companion</span><span class="fake-badge">Fake data preview</span></div>
+    </header>
+    <main class="workspace">
+      <section class="route-column" aria-labelledby="page-title">
+        <div class="intro-row"><div><p class="eyebrow">A walk with a point of view</p><h1 id="page-title">Let the city tell you a story.</h1><p class="lede">A live, conversational podcast through Chinatown and Soho that follows your steps and changes its subject when you do.</p></div></div>
+        <section class="walk-brief" aria-labelledby="brief-title"><div class="brief-heading"><p class="eyebrow" id="brief-title">Today’s brief</p><span class="fake-badge">Rehearsal route</span></div><div class="brief-grid"><div><span>Area</span><strong>Chinatown → Soho</strong></div><div><span>Time constraint</span><strong>25 minutes</strong></div><div><span>Preferences</span><strong>Tudor architecture · history · Chinese food</strong></div></div></section>
+        <section class="map-card" aria-labelledby="map-title">
+          <div class="map-header"><div><h2 id="map-title">Your walk</h2><p id="map-caption">A gentle loop through the city centre</p></div><span class="fake-badge">Demo route</span></div>
+          <div class="map-wrap">
+            <svg id="route-map" viewBox="0 0 800 480" role="img" aria-labelledby="map-title map-caption">
+              <rect class="map-block" x="74" y="66" width="170" height="80" rx="11"></rect><rect class="map-block" x="315" y="34" width="175" height="92" rx="11"></rect><rect class="map-block" x="555" y="72" width="155" height="76" rx="11"></rect><rect class="map-block" x="91" y="266" width="146" height="103" rx="11"></rect><rect class="map-block" x="342" y="231" width="157" height="118" rx="11"></rect><rect class="map-block" x="583" y="268" width="126" height="103" rx="11"></rect>
+              <path class="map-street" d="M-20 182 C135 163 168 207 299 183 S542 129 820 190"></path><path class="map-street" d="M-12 407 C133 337 230 431 328 385 S575 364 823 408"></path><path class="map-street" d="M275 -20 C265 105 298 185 284 506"></path><path class="map-street" d="M517 -18 C491 90 544 205 527 500"></path><path class="map-street small" d="M41 46 C174 121 195 128 291 177 S484 238 771 229"></path><path class="map-street small" d="M45 319 C171 274 237 283 325 314 S558 274 769 311"></path><path class="map-street small" d="M170 -30 C218 96 209 159 158 267 S151 411 211 515"></path><path class="map-street small" d="M655 -22 C609 98 654 173 692 244 S678 395 632 510"></path>
+              <path id="route-shadow" class="route-shadow" d=""></path><path id="route-line" class="route-line" d=""></path><g id="poi-markers" aria-hidden="true"></g><circle id="user-pulse" class="user-pulse" cx="0" cy="0" r="14"></circle><circle id="user-dot" class="user-dot" cx="0" cy="0" r="7"></circle>
+            </svg>
+            <div class="map-key" aria-label="Map legend"><span class="key-item"><span class="key-route" aria-hidden="true"></span> route</span><span class="key-item"><span class="key-user" aria-hidden="true"></span> you</span></div>
+          </div>
+        </section>
+        <section class="route-details" aria-label="Route summary">
+          <div class="route-summary"><p class="eyebrow" id="route-theme-label">Architecture walk</p><h2 id="route-title">Corners, curves and concrete</h2><p id="route-description">A 45-minute loop through the city’s most curious buildings.</p><div class="stat-row"><div class="stat"><strong id="route-duration">45 min</strong><span>estimated</span></div><div class="stat"><strong id="route-distance">3.2 km</strong><span>on foot</span></div><div class="stat"><strong id="route-poi-count">4 stops</strong><span>chapters</span></div></div></div>
+          <div class="route-actions"><button class="button-primary" id="start" type="button">Start live walk</button><button class="button-quiet" id="stop" type="button" disabled>Stop</button></div>
+        </section>
+        <section class="route-diff" id="route-diff" aria-labelledby="route-diff-title" hidden><div class="diff-heading"><div><p class="eyebrow">V2 · nearby search</p><h2 id="route-diff-title">Music re-ranking from your current location</h2></div><span class="fake-badge">Preference delta</span></div><p id="route-diff-copy">We kept the 25-minute limit and searched nearby for music and counterculture stops.</p><div class="diff-grid"><div><span class="diff-label">Removed</span><ul id="removed-stops"></ul></div><div><span class="diff-label">Added</span><ul id="added-stops"></ul></div><div><span class="diff-label">Changed preference</span><strong id="preference-delta">Architecture stories → music + counterculture</strong></div></div></section>
+        <section class="poi-section" aria-labelledby="poi-title"><div class="section-heading"><h2 id="poi-title">Stops along the way</h2><span id="poi-count-label">4 chapters</span></div><ol class="poi-list" id="poi-list"></ol></section>
+      </section>
+      <aside class="podcast-panel" aria-labelledby="podcast-title">
+        <div class="panel-header"><div><p class="eyebrow">Your walking podcast</p><h2 id="podcast-title">Sidewalk stories</h2></div><span class="live-badge" id="live-badge">Offline</span></div>
+        <p class="connection-status" id="status" role="status" aria-live="polite">Checking Gemini setup…</p>
+        <section class="chapter-card" aria-labelledby="chapter-title"><div class="podcast-state-row"><span class="state-label" id="podcast-state-label">Ready to begin</span><span class="auto-label">Auto narration</span></div><h3 id="chapter-title">The building that bends</h3><p id="chapter-description">The next story begins when you reach this stop.</p><p class="podcast-hint">Narration continues automatically as you walk. Speaking interrupts narration so you can ask a question.</p><div class="next-chapter"><span>Up next</span><strong id="next-chapter-title">The next story will appear here</strong></div><div class="progress-track" aria-label="Walk progress"><div class="progress-value" id="progress-value"></div></div><div class="progress-caption"><span id="progress-caption">Ready when you are</span><span id="eta-caption">—</span></div></section>
+        <div class="voice-controls" aria-label="Voice controls"><button class="button-primary" id="start-panel" type="button">Start live walk</button><button class="button-quiet" id="mute" type="button" aria-pressed="false" disabled>Mute</button><button class="button-quiet" id="stop-panel" type="button" disabled>End</button></div>
+        <section class="theme-controls" aria-labelledby="theme-title"><div class="theme-heading"><strong id="theme-title">Change the subject</strong><span>updates your route</span></div><div class="theme-buttons"><button id="architecture" type="button" aria-pressed="true">Local stories</button><button id="music" type="button" aria-pressed="false">Music</button></div><div class="prompt-chip">Try saying <q>Can we talk about music?</q> to search nearby for music-related points of interest.</div><div class="rehearsal-controls"><div class="theme-heading"><strong>Preview the story beats</strong><span>simulation only</span></div><p class="rehearsal-intro">These buttons preview the app’s reactions without speaking or starting Gemini. Use them from 1 to 4 while rehearsing the film.</p><div class="rehearsal-buttons"><button id="rehearsal-v2" type="button" aria-pressed="false">1 · Switch to music</button><button id="rehearsal-v3" type="button" aria-pressed="false">2 · Remember mural</button><button id="rehearsal-v3b" type="button" aria-pressed="false">3 · Simulate wrong turn</button><button id="rehearsal-v4" type="button" aria-pressed="false">4 · Find nearby food</button></div><p class="rehearsal-status" id="rehearsal-status">Current preview: the initial Chinatown and Soho route.</p><div class="decision-card" id="decision-card" hidden><strong>Route deviation detected</strong><p>Returning would add backtracking. Continue through Berwick Street instead?</p><div class="decision-actions"><button class="button-primary" id="take-detour" type="button">Continue via Berwick</button><button class="button-quiet" id="stay-route" type="button">Return to old route</button></div></div></div><div class="simulation"><p><strong>Simulate live location</strong><br />Moves the map dot along this route. Fake GPS is sent only during a live walk.</p><button class="button-quiet" id="simulate" type="button" aria-pressed="false">Start simulation</button></div></section>
+        <section class="conversation-section" aria-labelledby="conversation-title"><div class="conversation-heading"><h3 id="conversation-title">Conversation</h3><span>live transcript</span></div><div class="transcript" id="transcript" role="log" aria-live="polite" aria-label="Conversation transcript"><span class="empty-state">Your conversation will appear here.</span></div></section>
+        <section class="activity" aria-labelledby="activity-title"><div class="activity-heading"><h3 id="activity-title">Behind the walk</h3><span>server activity</span></div><div class="tool-status" id="tool-status">No tool activity yet.</div><div class="event-log" id="log" role="log" aria-label="Connection events"></div></section>
+      </aside>
+    </main>
     <script>
       const INPUT_SAMPLE_RATE = 16000;
       const OUTPUT_SAMPLE_RATE = 24000;
       const WS_PROTOCOL_VERSION = 1;
-
+      const MAP_BOUNDS = { minLat:51.508, maxLat:51.517, minLng:-0.145, maxLng:-0.116 };
       const startBtn = document.getElementById('start');
+      const startPanelBtn = document.getElementById('start-panel');
       const stopBtn = document.getElementById('stop');
+      const stopPanelBtn = document.getElementById('stop-panel');
+      const muteBtn = document.getElementById('mute');
+      const simulateBtn = document.getElementById('simulate');
       const statusEl = document.getElementById('status');
+      const liveBadge = document.getElementById('live-badge');
       const toolStatusEl = document.getElementById('tool-status');
       const transcriptEl = document.getElementById('transcript');
       const logEl = document.getElementById('log');
+      const routeLine = document.getElementById('route-line');
+      const routeShadow = document.getElementById('route-shadow');
+      const userDot = document.getElementById('user-dot');
+      const userPulse = document.getElementById('user-pulse');
+      const poiMarkers = document.getElementById('poi-markers');
+      const progressValue = document.getElementById('progress-value');
+      const chapterTitle = document.getElementById('chapter-title');
+      const chapterDescription = document.getElementById('chapter-description');
+      const podcastStateLabel = document.getElementById('podcast-state-label');
+      const nextChapterTitle = document.getElementById('next-chapter-title');
+      const progressCaption = document.getElementById('progress-caption');
+      const etaCaption = document.getElementById('eta-caption');
+      const routeDiff = document.getElementById('route-diff');
+      const removedStops = document.getElementById('removed-stops');
+      const addedStops = document.getElementById('added-stops');
+      const preferenceDelta = document.getElementById('preference-delta');
+      const rehearsalStatus = document.getElementById('rehearsal-status');
+      const decisionCard = document.getElementById('decision-card');
+      const rehearsalButtons = [...document.querySelectorAll('.rehearsal-buttons button')];
 
-      let socket = null;
-      let stream = null;
-      let captureContext = null;
-      let captureSource = null;
-      let captureProcessor = null;
-      let captureMute = null;
-      let playbackContext = null;
-      let playbackSources = new Set();
-      let playbackNextTime = 0;
-      let audioReady = false;
-      let stopping = false;
-      let connectionTimer = null;
-      let captureResampler = null;
-      const transcripts = new Map();
+      const routePresets = {
+        architecture: {
+          theme: 'architecture', label:'Chinatown · Soho', title: 'A short walk with a long memory', description: 'A 25-minute loop from Chinatown into Soho, with room for a change of mind.', duration_minutes: 25, distance_m: 1700,
+          geometry: [{latitude:51.5117,longitude:-0.1310},{latitude:51.5115,longitude:-0.1318},{latitude:51.5136,longitude:-0.1315},{latitude:51.5135,longitude:-0.1329},{latitude:51.5128,longitude:-0.1344}],
+          points_of_interest: [
+            {id:'chinatown-gate',name:'Chinatown Gate',subtitle:'The southern entrance to Chinatown',kind:'landmark',latitude:51.5117,longitude:-0.1310,story:'The Chinatown Gate opens the walk into Gerrard Street, where London’s Chinese community has made food, language, and celebration part of Soho’s daily rhythm.'},
+            {id:'gerrard-street',name:'Gerrard Street',subtitle:'Chinatown’s restaurant spine',kind:'street',latitude:51.5115,longitude:-0.1318,story:'Gerrard Street’s restaurants, bakeries, and late-night kitchens show how a neighbourhood can be both a destination and a living community.'},
+            {id:'st-annes-soho',name:'St Anne’s Soho',subtitle:'A church at the centre of the old parish',kind:'church',latitude:51.5136,longitude:-0.1315,story:'St Anne’s anchors a parish whose history reaches through the older village edges and into the dense West End around it.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square compresses centuries of London into one garden: formal terraces, changing communities, and constant movement.'},
+            {id:'berwick-street',name:'Berwick Street',subtitle:'Market, music, and Soho life',kind:'market',latitude:51.5128,longitude:-0.1344,story:'Berwick Street has held together market stalls, independent shops, and music history.'},
+          ],
+        },
+        music: {
+          theme: 'music', label:'V2 · Music + counterculture', title: 'A nearby search in a different key', description: 'The 25-minute limit stays fixed while nearby music and counterculture stops move up the route.', duration_minutes: 25, distance_m: 1800,
+          geometry: [{latitude:51.5127,longitude:-0.1318},{latitude:51.5133,longitude:-0.1320},{latitude:51.5130,longitude:-0.1337},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest: [
+            {id:'old-compton-street',name:'Old Compton Street',subtitle:'The bright, noisy heart of Soho',kind:'street',latitude:51.5127,longitude:-0.1318,story:'Old Compton Street carries Soho’s music, nightlife, and queer history in a compact run of theatres, bars, and cafés.'},
+            {id:'ronnie-scotts',name:'Ronnie Scott’s',subtitle:'A jazz club with a global sound',kind:'music venue',latitude:51.5133,longitude:-0.1320,story:'Ronnie Scott’s brought international jazz into the Soho night and made this small part of London a destination for musicians and listeners.'},
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'A public memory painted on a wall',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'The mural turns a wall into a neighbourhood scrapbook, holding the faces, venues, and countercultural memories that shaped modern Soho.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square compresses centuries of London into one garden.'},
+          ],
+        },
+        mural: {
+          theme:'mural', label:'V3 · Mural memory', title:'A wall worth remembering', description:'A remembered mural becomes the next chapter, with a small detour offered before we commit.', duration_minutes:25, distance_m:1900,
+          geometry:[{latitude:51.5127,longitude:-0.1318},{latitude:51.5133,longitude:-0.1320},{latitude:51.5130,longitude:-0.1337},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'old-compton-street',name:'Old Compton Street',subtitle:'The bright, noisy heart of Soho',kind:'street',latitude:51.5127,longitude:-0.1318,story:'Old Compton Street carries Soho’s music and counterculture.'},
+            {id:'ronnie-scotts',name:'Ronnie Scott’s',subtitle:'A jazz club with a global sound',kind:'music venue',latitude:51.5133,longitude:-0.1320,story:'Ronnie Scott’s brought international jazz into the Soho night.'},
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'You said: “I really like this”',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'You remembered the Spirit of Soho Mural, so public art, cultural history, and murals now rank higher.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'A green pause in the West End',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'Soho Square remains the final stop.'},
+          ],
+        },
+        detour: {
+          theme:'mural', label:'V3B · Berwick detour', title:'Continue without backtracking', description:'A wrong turn becomes a useful route through Berwick Street while arrival time and interest fit stay on target.', duration_minutes:25, distance_m:1900,
+          geometry:[{latitude:51.5130,longitude:-0.1337},{latitude:51.5128,longitude:-0.1344},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'spirit-of-soho-mural',name:'Spirit of Soho Mural',subtitle:'The remembered landmark',kind:'mural',latitude:51.5130,longitude:-0.1337,story:'The mural anchors the revised route.'},
+            {id:'berwick-street',name:'Berwick Street',subtitle:'No backtracking needed',kind:'market',latitude:51.5128,longitude:-0.1344,story:'The deviation becomes a route through market stalls, independent shops, and music history.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'Arrival time preserved',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'The walk rejoins its destination without retracing steps.'},
+          ],
+        },
+        food: {
+          theme:'food', label:'V4 · Food stop', title:'End with something warm', description:'A nearby food stop fits inside the remaining time, with the story still rolling as we walk.', duration_minutes:25, distance_m:1950,
+          geometry:[{latitude:51.5128,longitude:-0.1344},{latitude:51.5120,longitude:-0.1322},{latitude:51.5135,longitude:-0.1329}],
+          points_of_interest:[
+            {id:'berwick-street',name:'Berwick Street',subtitle:'Your current location',kind:'market',latitude:51.5128,longitude:-0.1344,story:'The food search starts from the route and your remaining time.'},
+            {id:'nearby-food-stop',name:'Chinatown Food Stop',subtitle:'A fictional nearby bite',kind:'food stop',latitude:51.5120,longitude:-0.1322,story:'This fictional stop keeps the Chinese food thread alive without sending the walker far off route.'},
+            {id:'soho-square',name:'Soho Square',subtitle:'Back on the route',kind:'public space',latitude:51.5135,longitude:-0.1329,story:'The walk rejoins its destination after the food stop.'},
+          ],
+        },
+      };
 
-      function log(line) {
-        logEl.textContent += line + '\n';
-        logEl.scrollTop = logEl.scrollHeight;
-      }
+      let currentRoute = structuredClone(routePresets.architecture), currentTheme = 'architecture', socket = null, stream = null, captureContext = null, captureSource = null, captureProcessor = null, captureMute = null, playbackContext = null, playbackSources = new Set(), playbackNextTime = 0, audioReady = false, stopping = false, muted = false, connectionTimer = null, captureResampler = null, routeProgress = 0, routeVersion = 1, transcripts = new Map(), simulationTimer = null, simulationProgress = 0, locationSequence = 0, podcastState = 'idle', podcastCurrentChapter = null, rehearsalStage = 'base';
 
-      function setStatus(message) {
-        statusEl.textContent = message;
-      }
-
-      function renderTranscripts() {
-        const turns = [...transcripts.entries()]
-          .sort(([first], [second]) => Number(first) - Number(second))
-          .map(([, entry]) => ({ ...entry }));
-        const visibleTurns = [];
-        for (const turn of turns) {
-          const previous = visibleTurns.at(-1);
-          // Gemini can finalize a single utterance as several adjacent transcript
-          // parts. Join those fragments while keeping speaker changes as turn breaks.
-          if (previous?.speaker === turn.speaker) previous.text += turn.text;
-          else visibleTurns.push(turn);
+      function log(line) { const row = document.createElement('div'); row.textContent = line; logEl.append(row); while (logEl.children.length > 4) logEl.firstElementChild.remove(); logEl.scrollTop = logEl.scrollHeight; }
+      function setStatus(message) { statusEl.textContent = message; }
+      function setLiveState(isLive) { liveBadge.textContent = isLive ? 'Live' : 'Offline'; liveBadge.classList.toggle('is-live', isLive); }
+      function chapterDetails(chapter) { if (!chapter) return null; if (typeof chapter === 'string') return { title:chapter, description:'' }; return { id:chapter.id, title:chapter.title || chapter.name || chapter.label || chapter.subtitle || 'Untitled chapter', description:chapter.description || chapter.story || chapter.text || chapter.summary || chapter.subtitle || '' }; }
+      function setPodcastState(event = {}) {
+        const reportedState = event.state || event.status;
+        const state = ['playing','listening','completed'].includes(reportedState) ? reportedState : 'idle';
+        podcastState = state;
+        if (Object.prototype.hasOwnProperty.call(event, 'current_chapter')) podcastCurrentChapter = chapterDetails(event.current_chapter);
+        const labels = { idle:'Ready to begin', playing:'Now playing', listening:'Listening', completed:'Walk complete' };
+        podcastStateLabel.textContent = labels[state];
+        podcastStateLabel.className = `state-label${state === 'listening' ? ' is-listening' : state === 'completed' ? ' is-completed' : ''}`;
+        if (podcastCurrentChapter) {
+          chapterTitle.textContent = podcastCurrentChapter.title;
+          if (podcastCurrentChapter.description) chapterDescription.textContent = podcastCurrentChapter.description;
+        } else if (state === 'listening') {
+          chapterTitle.textContent = 'Listening for your next question';
+          chapterDescription.textContent = 'The story is paused while Sidewalk listens. Speak when you are ready.';
+        } else if (state === 'completed') {
+          chapterTitle.textContent = 'Your walk is complete';
+          chapterDescription.textContent = 'The prepared stories are finished. Ask for another theme to keep exploring.';
         }
-        transcriptEl.textContent = visibleTurns
-          .map((entry) => `${entry.speaker === 'user' ? 'You' : 'Assistant'}: ${entry.text.trim()}`)
-          .join('\n');
+        const explicitNext = chapterDetails(event.next_chapter);
+        const currentIndex = podcastCurrentChapter?.id ? (currentRoute.points_of_interest || []).findIndex((poi) => poi.id === podcastCurrentChapter.id) : -1;
+        const fallbackNext = currentRoute.points_of_interest?.[currentIndex + 1] || currentRoute.points_of_interest?.find((poi) => poi.id !== podcastCurrentChapter?.id);
+        const next = explicitNext || chapterDetails(fallbackNext);
+        nextChapterTitle.textContent = next?.title || 'More stories ahead';
+      }
+      function renderTranscripts() {
+        const turns = [...transcripts.entries()].sort(([a],[b]) => Number(a)-Number(b)).map(([,entry]) => ({...entry})), visibleTurns = [];
+        for (const turn of turns) { const previous = visibleTurns.at(-1); if (previous?.speaker === turn.speaker) previous.text += turn.text; else visibleTurns.push(turn); }
+        transcriptEl.replaceChildren();
+        if (!visibleTurns.length) { const empty = document.createElement('span'); empty.className = 'empty-state'; empty.textContent = 'Your conversation will appear here.'; transcriptEl.append(empty); return; }
+        for (const entry of visibleTurns) { const paragraph = document.createElement('p'), speaker = document.createElement('span'); speaker.className = 'speaker'; speaker.textContent = entry.speaker === 'user' ? 'You' : 'Sidewalk'; paragraph.append(speaker, document.createTextNode(entry.text.trim())); transcriptEl.append(paragraph); }
         transcriptEl.scrollTop = transcriptEl.scrollHeight;
       }
-
-      function websocketUrl() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${protocol}//${window.location.host}/gemini/voice`;
+      function websocketUrl() { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${protocol}//${window.location.host}/gemini/voice`; }
+      function projectPoint(location) { return { x:((location.longitude-MAP_BOUNDS.minLng)/(MAP_BOUNDS.maxLng-MAP_BOUNDS.minLng))*720+40, y:420-((location.latitude-MAP_BOUNDS.minLat)/(MAP_BOUNDS.maxLat-MAP_BOUNDS.minLat))*370 }; }
+      function routePath(geometry) { return geometry.map((location,index) => { const point = projectPoint(location); return `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`; }).join(' '); }
+      function interpolateLocation(geometry, progress) { if (!geometry.length) return null; const scaled = Math.max(0,Math.min(1,progress))*(geometry.length-1), index = Math.min(geometry.length-2,Math.floor(scaled)); if (index < 0) return geometry[0]; const fraction = scaled-index; return { latitude:geometry[index].latitude+(geometry[index+1].latitude-geometry[index].latitude)*fraction, longitude:geometry[index].longitude+(geometry[index+1].longitude-geometry[index].longitude)*fraction }; }
+      function progressForLocation(location) { if (!location || !currentRoute.geometry?.length) return routeProgress; let nearestIndex = 0, nearestDistance = Infinity; currentRoute.geometry.forEach((point,index) => { const distance = (point.latitude-location.latitude)**2 + (point.longitude-location.longitude)**2; if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index; } }); return nearestIndex / Math.max(1,currentRoute.geometry.length - 1); }
+      function renderMap() {
+        const path = routePath(currentRoute.geometry || []); routeLine.setAttribute('d',path); routeShadow.setAttribute('d',path); poiMarkers.replaceChildren();
+        for (const [index,poi] of (currentRoute.points_of_interest || []).entries()) { const point = projectPoint(poi), group = document.createElementNS('http://www.w3.org/2000/svg','g'), circle = document.createElementNS('http://www.w3.org/2000/svg','circle'), label = document.createElementNS('http://www.w3.org/2000/svg','text'); circle.setAttribute('cx',point.x); circle.setAttribute('cy',point.y); circle.setAttribute('r','8'); circle.setAttribute('fill','#fffdfa'); circle.setAttribute('stroke','#dc6548'); circle.setAttribute('stroke-width','3'); label.setAttribute('class','poi-label'); label.setAttribute('x',point.x+13); label.setAttribute('y',point.y+(index%2 ? -13 : 22)); label.textContent = `${index+1}  ${poi.name}`; group.append(circle,label); poiMarkers.append(group); }
+        updateUserDot(interpolateLocation(currentRoute.geometry || [],routeProgress));
       }
-
-      function appendSamples(first, second) {
-        const combined = new Float32Array(first.length + second.length);
-        combined.set(first);
-        combined.set(second, first.length);
-        return combined;
+      function renderPoiList() {
+        const list = document.getElementById('poi-list'), points = currentRoute.points_of_interest || []; list.replaceChildren(); document.getElementById('poi-count-label').textContent = `${points.length} chapters`;
+        for (const [index,poi] of points.entries()) { const item = document.createElement('li'); item.className = 'poi-item'; const threshold = (index+1)/(points.length+1); if (routeProgress >= threshold+.04) item.classList.add('is-visited'); else if (routeProgress >= threshold-.16) item.classList.add('is-next'); const number = document.createElement('span'); number.className='poi-number'; number.textContent=String(index+1).padStart(2,'0'); const copy=document.createElement('div'); copy.className='poi-copy'; const title=document.createElement('strong'); title.textContent=poi.name; const subtitle=document.createElement('span'); subtitle.textContent=poi.subtitle || poi.kind || 'story stop'; copy.append(title,subtitle); const state=document.createElement('span'); state.className='poi-status'; state.textContent=item.classList.contains('is-visited')?'Heard':item.classList.contains('is-next')?'Next':`${Math.round(threshold*currentRoute.duration_minutes)} min`; item.append(number,copy,state); list.append(item); }
       }
-
-      // Keep the fractional source position between ScriptProcessor callbacks so that
-      // a browser running its input context at 48 kHz still emits a continuous 16 kHz stream.
-      function downsample(samples, sourceRate) {
-        if (sourceRate === INPUT_SAMPLE_RATE) return samples;
-        if (!captureResampler || captureResampler.sourceRate !== sourceRate) {
-          captureResampler = { sourceRate, buffer: new Float32Array(0), offset: 0 };
-        }
-        captureResampler.buffer = appendSamples(captureResampler.buffer, samples);
-        const ratio = sourceRate / INPUT_SAMPLE_RATE;
-        const output = [];
-        while (captureResampler.offset + 1 < captureResampler.buffer.length) {
-          const index = Math.floor(captureResampler.offset);
-          const fraction = captureResampler.offset - index;
-          const current = captureResampler.buffer[index];
-          const next = captureResampler.buffer[index + 1];
-          output.push(current + (next - current) * fraction);
-          captureResampler.offset += ratio;
-        }
-        const consumed = Math.floor(captureResampler.offset);
-        if (consumed > 0) {
-          captureResampler.buffer = captureResampler.buffer.slice(consumed);
-          captureResampler.offset -= consumed;
-        }
-        return Float32Array.from(output);
+      function renderRouteSummary() { const theme=currentRoute.theme || currentTheme, subject=theme==='music' || theme==='mural' || theme==='food' ? 'music' : 'architecture'; document.getElementById('route-theme-label').textContent=currentRoute.label || `${theme[0].toUpperCase()}${theme.slice(1)} walk`; document.getElementById('route-title').textContent=currentRoute.title || 'A walk with a point of view'; document.getElementById('route-description').textContent=currentRoute.description || 'A changing route through the city.'; document.getElementById('route-duration').textContent=`${currentRoute.duration_minutes || 25} min`; document.getElementById('route-distance').textContent=`${((currentRoute.distance_m || 0)/1000).toFixed(1)} km`; document.getElementById('route-poi-count').textContent=`${(currentRoute.points_of_interest || []).length} stops`; document.getElementById('map-caption').textContent=`${(currentRoute.points_of_interest || []).length} chapters · ${currentRoute.label || theme} edition`; document.getElementById('architecture').setAttribute('aria-pressed',String(subject==='architecture')); document.getElementById('music').setAttribute('aria-pressed',String(subject==='music')); }
+      function updateUserDot(location) { if (!location) return; const point=projectPoint(location); for (const element of [userDot,userPulse]) { element.setAttribute('cx',point.x); element.setAttribute('cy',point.y); } }
+      function updateProgress(progress,location=null,nextPoiId=null) { routeProgress=Math.max(0,Math.min(1,Number(progress)||0)); const activeLocation=location || interpolateLocation(currentRoute.geometry || [],routeProgress); updateUserDot(activeLocation); progressValue.style.width=`${routeProgress*100}%`; const eta=Math.max(0,Math.ceil((currentRoute.duration_minutes || 45)*(1-routeProgress))); progressCaption.textContent=routeProgress<.01?'Ready when you are':`${Math.round(routeProgress*100)}% of the walk`; etaCaption.textContent=routeProgress>.98?'Arrived':`${eta} min left`; let nextIndex=(currentRoute.points_of_interest || []).findIndex((poi)=>poi.id===nextPoiId); if(nextIndex<0) nextIndex=Math.min((currentRoute.points_of_interest || []).length-1,Math.floor(routeProgress*(currentRoute.points_of_interest || []).length)); const nextPoi=currentRoute.points_of_interest?.[nextIndex]; if(nextPoi && !podcastCurrentChapter){ chapterTitle.textContent=nextPoi.name; chapterDescription.textContent=nextPoi.story || nextPoi.subtitle || 'A story is waiting at the next stop.'; } if(!podcastCurrentChapter) nextChapterTitle.textContent=currentRoute.points_of_interest?.[nextIndex+1]?.name || 'More stories ahead'; renderPoiList(); }
+      function setRoute(route,announce=true) { currentRoute=structuredClone(route); routeVersion+=1; routeProgress=0; podcastCurrentChapter=null; setPodcastState({state:'idle'}); renderRouteSummary(); renderMap(); renderPoiList(); updateProgress(0); if(announce) log(`Preview route changed to ${currentRoute.theme}.`); }
+      function renderRouteDiff(removed,added,preference='Architecture stories → music + counterculture') { routeDiff.hidden=false; removedStops.replaceChildren(); addedStops.replaceChildren(); for(const name of removed){const item=document.createElement('li');item.textContent=name;removedStops.append(item);} for(const name of added){const item=document.createElement('li');item.textContent=name;addedStops.append(item);} preferenceDelta.textContent=preference; }
+      function sendRehearsalControl(stage) { if(!socket || socket.readyState!==WebSocket.OPEN)return; const payload={type:'demo_theme',theme:'music',interests:['music','counterculture']}; if(stage==='v2')payload.topic='Can we talk about music?'; if(stage==='v3')payload.memory='I really like this mural'; if(stage==='v3b')payload.deviation='wrong turn via Berwick Street'; if(stage==='v4')payload.insert_nearby_food=true; try{socket.send(JSON.stringify(payload));log(`Sent ${stage.toUpperCase()} rehearsal state to the relay.`);}catch{} }
+      function updateRehearsalButtons(stage) { for(const button of rehearsalButtons) button.setAttribute('aria-pressed',String(button.id === `rehearsal-${stage}`)); }
+      function applyRehearsalStage(stage) {
+        rehearsalStage=stage; updateRehearsalButtons(stage); decisionCard.hidden=true;
+        if(stage==='base'){ currentTheme='architecture'; setRoute(routePresets.architecture); routeDiff.hidden=true; rehearsalStatus.textContent='V1 · 25-minute Chinatown to Soho route for Tudor architecture, history, and Chinese food.'; setPodcastState({state:'playing',current_chapter:routePresets.architecture.points_of_interest[0],next_chapter:routePresets.architecture.points_of_interest[1]}); return; }
+        if(stage==='v2'){ currentTheme='music'; setRoute(routePresets.music); renderRouteDiff(['St Anne’s Soho','Berwick Street'],['Old Compton Street','Ronnie Scott’s','Spirit of Soho Mural'],'Architecture ↓ · Music ↑ · Counterculture ↑; 25-minute limit unchanged'); rehearsalStatus.textContent='V2 · Nearby search from your current location re-ranked the route for music and counterculture.'; setPodcastState({state:'playing',current_chapter:routePresets.music.points_of_interest[0],next_chapter:routePresets.music.points_of_interest[1]}); sendRehearsalControl(stage); return; }
+        if(stage==='v3'){ currentTheme='music'; setRoute(routePresets.mural); routeDiff.hidden=false; rehearsalStatus.textContent='V3A · Memory saved: photo + Spirit of Soho Mural + “I really like this”; route unchanged.'; setPodcastState({state:'playing',current_chapter:routePresets.mural.points_of_interest[2],next_chapter:routePresets.mural.points_of_interest[3]}); sendRehearsalControl(stage); return; }
+        if(stage==='v3b'){ currentTheme='music'; setRoute(routePresets.detour); routeDiff.hidden=false; decisionCard.hidden=false; rehearsalStatus.textContent='V3B · Route deviation detected. Continue via Berwick Street avoids backtracking.'; setPodcastState({state:'listening',current_chapter:routePresets.detour.points_of_interest[0],next_chapter:routePresets.detour.points_of_interest[1]}); sendRehearsalControl(stage); return; }
+        if(stage==='v4'){ currentTheme='music'; setRoute(routePresets.food); routeDiff.hidden=false; rehearsalStatus.textContent='V4 · A food stop fits the remaining time and keeps the podcast moving.'; setPodcastState({state:'playing',current_chapter:routePresets.food.points_of_interest[1],next_chapter:routePresets.food.points_of_interest[2]}); sendRehearsalControl(stage); }
       }
-
-      function encodePcm16(samples) {
-        const bytes = new ArrayBuffer(samples.length * 2);
-        const view = new DataView(bytes);
-        for (let index = 0; index < samples.length; index += 1) {
-          const sample = Math.max(-1, Math.min(1, samples[index]));
-          view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-        }
-        return bytes;
-      }
-
-      function attachMicrophone() {
-        if (!stream || !captureContext || !socket || !audioReady) return;
-        captureSource = captureContext.createMediaStreamSource(stream);
-        // At the requested 16 kHz rate, 512 frames is 32 ms of microphone audio.
-        // Browsers that keep a 48 kHz context deliver roughly 11 ms callbacks,
-        // which are resampled below before being sent to the relay.
-        captureProcessor = captureContext.createScriptProcessor(512, 1, 1);
-        captureMute = captureContext.createGain();
-        captureMute.gain.value = 0;
-        captureResampler = null;
-        captureProcessor.onaudioprocess = (event) => {
-          if (!audioReady || !socket || socket.readyState !== WebSocket.OPEN) return;
-          const samples = downsample(
-            event.inputBuffer.getChannelData(0),
-            captureContext.sampleRate,
-          );
-          if (samples.length) socket.send(encodePcm16(samples));
-        };
-        captureSource.connect(captureProcessor);
-        // ScriptProcessor nodes need an output connection to run in some browsers. A muted
-        // destination keeps the microphone out of the speakers while driving the callback.
-        captureProcessor.connect(captureMute);
-        captureMute.connect(captureContext.destination);
-        captureContext.resume().catch(() => {});
-      }
-
-      function playPcm16(data) {
-        if (!playbackContext || data.byteLength % 2 !== 0) {
-          if (data.byteLength % 2 !== 0) log('Ignored an invalid odd-length PCM audio frame.');
-          return;
-        }
-        const samples = new Int16Array(data);
-        const buffer = playbackContext.createBuffer(1, samples.length, OUTPUT_SAMPLE_RATE);
-        const channel = buffer.getChannelData(0);
-        for (let index = 0; index < samples.length; index += 1) {
-          channel[index] = samples[index] < 0 ? samples[index] / 0x8000 : samples[index] / 0x7fff;
-        }
-        const source = playbackContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(playbackContext.destination);
-        const startAt = Math.max(playbackContext.currentTime + 0.01, playbackNextTime);
-        playbackNextTime = startAt + buffer.duration;
-        playbackSources.add(source);
-        source.onended = () => {
-          playbackSources.delete(source);
-          source.disconnect();
-        };
-        source.start(startAt);
-        playbackContext.resume().catch(() => {});
-      }
-
-      function clearPlayback() {
-        for (const source of playbackSources) {
-          try { source.stop(); } catch {}
-          source.disconnect();
-        }
-        playbackSources.clear();
-        playbackNextTime = 0;
-      }
-
-      function handleEvent(event) {
-        if (!event || typeof event.type !== 'string') return;
-        switch (event.type) {
-          case 'ready':
-            if (
-              event.protocol !== WS_PROTOCOL_VERSION ||
-              event.encoding !== 'pcm16le' ||
-              event.channels !== 1 ||
-              event.input_sample_rate !== INPUT_SAMPLE_RATE ||
-              event.output_sample_rate !== OUTPUT_SAMPLE_RATE
-            ) {
-              throw new Error('The relay returned an unsupported audio protocol.');
-            }
-            audioReady = true;
-            attachMicrophone();
-            setStatus(`Live — ${event.model} · ${event.voice || 'Gemini'}`);
-            log(`Connected to ${event.model || 'Gemini Live'}; audio is ready.`);
-            break;
-          case 'transcript':
-            if (event.index === undefined || !event.speaker) return;
-            transcripts.set(String(event.index), { speaker: event.speaker, text: event.text || '' });
-            renderTranscripts();
-            break;
-          case 'tool_call':
-            toolStatusEl.textContent = `Calling ${event.name || 'tool'}…`;
-            log(`Tool call: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);
-            break;
-          case 'tool_result':
-            toolStatusEl.textContent = `Completed ${event.name || 'tool'}.`;
-            log(`Tool result: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);
-            break;
-          case 'clear_output':
-            clearPlayback();
-            log(`Assistant output cleared${event.reason ? ` (${event.reason})` : ''}.`);
-            break;
-          case 'turn_complete':
-            setStatus('Live — start talking');
-            log('Turn complete.');
-            break;
-          case 'reconnected':
-            setStatus('Reconnected — start talking');
-            log(`Relay reconnected${event.state_restored ? ' with state restored' : ''}.`);
-            break;
-          case 'pong':
-            break;
-          case 'error': {
-            const message = event.message || 'The Gemini relay reported an error.';
-            log(`Error${event.code ? ` [${event.code}]` : ''}: ${message}`);
-            if (event.fatal) stop(`Failed: ${message}`, false);
-            else setStatus(`Warning: ${message}`);
-            break;
-          }
-          default:
-            log(`Relay event: ${event.type}`);
-        }
-      }
-
-      function cleanupAudio() {
-        audioReady = false;
-        if (captureProcessor) {
-          captureProcessor.onaudioprocess = null;
-          captureProcessor.disconnect();
-          captureProcessor = null;
-        }
-        if (captureSource) { captureSource.disconnect(); captureSource = null; }
-        if (captureMute) { captureMute.disconnect(); captureMute = null; }
-        clearPlayback();
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-          stream = null;
-        }
-        const contexts = [captureContext, playbackContext];
-        captureContext = null;
-        playbackContext = null;
-        for (const context of contexts) {
-          if (context && context.state !== 'closed') context.close().catch(() => {});
-        }
-      }
-
-      function stop(message = 'Idle', notifyServer = true) {
-        if (stopping) return;
-        stopping = true;
-        clearTimeout(connectionTimer);
-        connectionTimer = null;
-        const activeSocket = socket;
-        socket = null;
-        audioReady = false;
-        if (activeSocket && activeSocket.readyState < WebSocket.CLOSING) {
-          if (notifyServer && activeSocket.readyState === WebSocket.OPEN) {
-            try { activeSocket.send(JSON.stringify({ type: 'close' })); } catch {}
-          }
-          try { activeSocket.close(1000, 'Client stopped'); } catch {}
-        }
-        cleanupAudio();
-        stopBtn.disabled = true;
-        startBtn.disabled = false;
-        setStatus(message);
-        stopping = false;
-      }
-
-      async function start() {
-        if (socket) return;
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-        transcripts.clear();
-        renderTranscripts();
-        toolStatusEl.textContent = 'No tool activity yet.';
-        logEl.textContent = '';
-        setStatus('Checking Gemini setup…');
-
-        const setupResponse = await fetch('/gemini/health');
-        if (!setupResponse.ok) throw new Error('Cannot reach the local server.');
-        const setup = await setupResponse.json();
-        if (!setup.configured) throw new Error('Add GOOGLE_API_KEY to .env, save it, then try again.');
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Open this page on localhost or HTTPS to use the microphone.');
-        }
-
-        setStatus('Requesting microphone…');
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            sampleRate: INPUT_SAMPLE_RATE,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        captureContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
-        playbackContext = new AudioContext();
-        socket = new WebSocket(websocketUrl());
-        socket.binaryType = 'arraybuffer';
-        const currentSocket = socket;
-        socket.onopen = () => {
-          if (socket !== currentSocket) return;
-          setStatus('Connecting to Gemini…');
-        };
-        socket.onmessage = async (message) => {
-          if (socket !== currentSocket) return;
-          if (typeof message.data === 'string') {
-            try { handleEvent(JSON.parse(message.data)); }
-            catch (error) { stop(`Failed: ${error.message}`, false); }
-            return;
-          }
-          const data = message.data instanceof ArrayBuffer
-            ? message.data
-            : await message.data.arrayBuffer();
-          if (socket === currentSocket) playPcm16(data);
-        };
-        socket.onerror = () => {
-          if (socket === currentSocket) setStatus('Connection error…');
-        };
-        socket.onclose = () => {
-          if (socket === currentSocket) stop('Connection closed.', false);
-        };
-        connectionTimer = setTimeout(() => {
-          if (socket === currentSocket && !audioReady) stop('Gemini connection timed out.', false);
-        }, 20000);
-      }
-
-      startBtn.onclick = () => start().catch((error) => stop(`Failed: ${error.message}`));
-      stopBtn.onclick = () => stop();
-      window.addEventListener('pagehide', () => stop('Closed', true));
-
-      fetch('/gemini/health')
-        .then((response) => {
-          if (!response.ok) throw new Error('Server unavailable');
-          return response.json();
-        })
-        .then((setup) => {
-          setStatus(setup.configured
-            ? `Ready — ${setup.model} · ${setup.voice}`
-            : 'Setup: add GOOGLE_API_KEY to .env, save it, then click Start call.');
-        })
-        .catch(() => setStatus('Could not reach the local server.'));
+      function resolveDetour(takeDetour) { decisionCard.hidden=true; if(takeDetour){setRoute(routePresets.detour);rehearsalStatus.textContent='Continue via Berwick selected · arrival time ✓ · interest fit ✓ · no backtracking ✓.';setPodcastState({state:'playing',current_chapter:routePresets.detour.points_of_interest[1],next_chapter:routePresets.detour.points_of_interest[2]});sendRehearsalControl('v3b');}else{setRoute(routePresets.music);rehearsalStatus.textContent='Return to old route selected · the mural memory remains in your taste profile.';setPodcastState({state:'listening',current_chapter:routePresets.music.points_of_interest[2],next_chapter:routePresets.music.points_of_interest[3]});} }
+      function selectTheme(theme) { currentTheme=theme; setRoute(routePresets[theme]); if(socket?.readyState===WebSocket.OPEN){ socket.send(JSON.stringify({type:'demo_theme',theme})); log(`Requested a ${theme} route from the relay.`); } }
+      function sendLocation(location) { if(!socket || socket.readyState!==WebSocket.OPEN || !location) return; locationSequence+=1; socket.send(JSON.stringify({type:'location_update',seq:locationSequence,timestamp:new Date().toISOString(),...location,accuracy_m:5})); }
+      function simulationTick() { simulationProgress=Math.min(1,simulationProgress+.012); const location=interpolateLocation(currentRoute.geometry || [],simulationProgress); updateProgress(simulationProgress,location); sendLocation(location); if(simulationProgress>=1) stopSimulation(); }
+      function stopSimulation() { clearInterval(simulationTimer); simulationTimer=null; simulateBtn.setAttribute('aria-pressed','false'); simulateBtn.textContent='Start simulation'; }
+      function toggleSimulation() { if(simulationTimer){stopSimulation();return;} if(simulationProgress>=1) simulationProgress=0; simulationTimer=setInterval(simulationTick,850); simulateBtn.setAttribute('aria-pressed','true'); simulateBtn.textContent='Pause simulation'; simulationTick(); }
+      function appendSamples(first,second) { const combined=new Float32Array(first.length+second.length); combined.set(first); combined.set(second,first.length); return combined; }
+      function downsample(samples,sourceRate) { if(sourceRate===INPUT_SAMPLE_RATE)return samples; if(!captureResampler || captureResampler.sourceRate!==sourceRate)captureResampler={sourceRate,buffer:new Float32Array(0),offset:0}; captureResampler.buffer=appendSamples(captureResampler.buffer,samples); const ratio=sourceRate/INPUT_SAMPLE_RATE,output=[]; while(captureResampler.offset+1<captureResampler.buffer.length){const index=Math.floor(captureResampler.offset),fraction=captureResampler.offset-index; output.push(captureResampler.buffer[index]+(captureResampler.buffer[index+1]-captureResampler.buffer[index])*fraction); captureResampler.offset+=ratio;} const consumed=Math.floor(captureResampler.offset); if(consumed>0){captureResampler.buffer=captureResampler.buffer.slice(consumed);captureResampler.offset-=consumed;} return Float32Array.from(output); }
+      function encodePcm16(samples) { const bytes=new ArrayBuffer(samples.length*2),view=new DataView(bytes); for(let index=0;index<samples.length;index+=1){const sample=Math.max(-1,Math.min(1,samples[index]));view.setInt16(index*2,sample<0?sample*0x8000:sample*0x7fff,true);} return bytes; }
+      function attachMicrophone() { if(!stream || !captureContext || !socket || !audioReady)return; captureSource=captureContext.createMediaStreamSource(stream); captureProcessor=captureContext.createScriptProcessor(512,1,1); captureMute=captureContext.createGain(); captureMute.gain.value=0; captureResampler=null; captureProcessor.onaudioprocess=(event)=>{if(!audioReady || !socket || socket.readyState!==WebSocket.OPEN || muted)return; const input=event.inputBuffer.getChannelData(0); const samples=downsample(input,captureContext.sampleRate); if(samples.length)socket.send(encodePcm16(samples));}; captureSource.connect(captureProcessor); captureProcessor.connect(captureMute); captureMute.connect(captureContext.destination); captureContext.resume().catch(()=>{}); }
+      function playPcm16(data) { if(!playbackContext || data.byteLength%2!==0){if(data.byteLength%2!==0)log('Ignored an invalid odd-length PCM audio frame.');return;} const samples=new Int16Array(data),buffer=playbackContext.createBuffer(1,samples.length,OUTPUT_SAMPLE_RATE),channel=buffer.getChannelData(0); for(let index=0;index<samples.length;index+=1)channel[index]=samples[index]<0?samples[index]/0x8000:samples[index]/0x7fff; const source=playbackContext.createBufferSource(); source.buffer=buffer; source.connect(playbackContext.destination); const startAt=Math.max(playbackContext.currentTime+.01,playbackNextTime); playbackNextTime=startAt+buffer.duration; playbackSources.add(source); source.onended=()=>{playbackSources.delete(source);source.disconnect();}; source.start(startAt); playbackContext.resume().catch(()=>{}); }
+      function clearPlayback() { for(const source of playbackSources){try{source.stop();}catch{} source.disconnect();} playbackSources.clear(); playbackNextTime=0; }
+      function applyRouteUpdate(event) { const geometry=Array.isArray(event.geometry)?event.geometry:Array.isArray(event.polyline)?event.polyline:null; currentRoute={...currentRoute,...(routePresets[event.theme] || {}),...event,...(geometry?{geometry}:{})}; if(!Array.isArray(currentRoute.geometry))currentRoute.geometry=routePresets[currentTheme].geometry; currentTheme=currentRoute.theme || currentTheme; routeVersion=event.route_version || routeVersion+1; podcastCurrentChapter=null; setPodcastState({state:'idle'}); renderRouteSummary(); renderMap(); renderPoiList(); updateProgress(routeProgress); log(`Route updated: ${currentRoute.theme || currentTheme}.`); }
+      function handleEvent(event) { if(!event || typeof event.type!=='string')return; switch(event.type){case 'ready': if(event.protocol!==WS_PROTOCOL_VERSION || event.encoding!=='pcm16le' || event.channels!==1 || event.input_sample_rate!==INPUT_SAMPLE_RATE || event.output_sample_rate!==OUTPUT_SAMPLE_RATE)throw new Error('The relay returned an unsupported audio protocol.'); audioReady=true;attachMicrophone();setLiveState(true);setStatus(`Live — ${event.model || 'Gemini'} · ${event.voice || 'Sidewalk'}`);log(`Connected to ${event.model || 'Gemini Live'}; audio is ready.`);socket.send(JSON.stringify({type:'demo_plan',theme:currentTheme,duration_minutes:currentRoute.duration_minutes || 45}));break; case 'route_update':applyRouteUpdate(event);break; case 'walk_progress':{const location=event.current_location || (Number.isFinite(Number(event.latitude)) && Number.isFinite(Number(event.longitude)) ? {latitude:Number(event.latitude),longitude:Number(event.longitude)} : null); const progress=Number.isFinite(Number(event.progress)) ? Number(event.progress) : progressForLocation(location); updateProgress(progress,location,event.next_poi_id || event.nearest_poi_id);break;} case 'podcast_state':setPodcastState(event);log(`Podcast state: ${event.state || event.status || 'idle'}.`);break; case 'transcript':if(event.index===undefined || !event.speaker)return;transcripts.set(String(event.index),{speaker:event.speaker,text:event.text || ''});renderTranscripts();break; case 'tool_call':toolStatusEl.className='tool-status is-active';toolStatusEl.textContent=`Calling ${event.name || 'walk tool'}…`;log(`Tool call: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);break; case 'tool_result':toolStatusEl.className='tool-status';toolStatusEl.textContent=`Completed ${event.name || 'walk tool'}.`;log(`Tool result: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);break; case 'clear_output':clearPlayback();if(event.reason==='barge_in' || event.reason==='client_interrupt')setPodcastState({state:'listening'});log(`Assistant output cleared${event.reason ? ` (${event.reason})` : ''}.`);break; case 'turn_complete':setStatus('Live — keep walking or start talking');log('Turn complete.');break; case 'reconnected':setStatus('Reconnected — keep walking');log(`Relay reconnected${event.state_restored ? ' with state restored' : ''}.`);break; case 'pong':break; case 'error':{const message=event.message || 'The Gemini relay reported an error.';log(`Error${event.code ? ` [${event.code}]` : ''}: ${message}`);if(event.fatal)stop(`Failed: ${message}`,false);else setStatus(`Warning: ${message}`);break;} default:log(`Relay event: ${event.type}`);} }
+      function cleanupAudio() { audioReady=false; if(captureProcessor){captureProcessor.onaudioprocess=null;captureProcessor.disconnect();captureProcessor=null;} if(captureSource){captureSource.disconnect();captureSource=null;} if(captureMute){captureMute.disconnect();captureMute=null;} clearPlayback(); if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null;} const contexts=[captureContext,playbackContext];captureContext=null;playbackContext=null;for(const context of contexts)if(context && context.state!=='closed')context.close().catch(()=>{}); }
+      function stop(message='Walk paused.',notifyServer=true) { if(stopping)return;stopping=true;stopSimulation();clearTimeout(connectionTimer);connectionTimer=null;const activeSocket=socket;socket=null;audioReady=false;if(activeSocket && activeSocket.readyState<WebSocket.CLOSING){if(notifyServer && activeSocket.readyState===WebSocket.OPEN)try{activeSocket.send(JSON.stringify({type:'close'}));}catch{} try{activeSocket.close(1000,'Client stopped');}catch{}} cleanupAudio();stopBtn.disabled=true;stopPanelBtn.disabled=true;muteBtn.disabled=true;startBtn.disabled=false;startPanelBtn.disabled=false;setLiveState(false);setStatus(message);stopping=false; }
+      async function start() { if(socket)return;startBtn.disabled=true;startPanelBtn.disabled=true;stopBtn.disabled=false;stopPanelBtn.disabled=false;muteBtn.disabled=false;transcripts.clear();renderTranscripts();toolStatusEl.className='tool-status';toolStatusEl.textContent='Connecting to the walk…';logEl.replaceChildren();setStatus('Checking Gemini setup…');const setupResponse=await fetch('/gemini/health');if(!setupResponse.ok)throw new Error('Cannot reach the local server.');const setup=await setupResponse.json();if(!setup.configured)throw new Error('Add GOOGLE_API_KEY to .env, save it, then try again.');if(!navigator.mediaDevices?.getUserMedia)throw new Error('Open this page on localhost or HTTPS to use the microphone.');setStatus('Requesting microphone…');stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,sampleRate:INPUT_SAMPLE_RATE,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});captureContext=new AudioContext({sampleRate:INPUT_SAMPLE_RATE});playbackContext=new AudioContext();socket=new WebSocket(websocketUrl());socket.binaryType='arraybuffer';const currentSocket=socket;socket.onopen=()=>{if(socket===currentSocket)setStatus('Connecting to your walking companion…');};socket.onmessage=async(message)=>{if(socket!==currentSocket)return;if(typeof message.data==='string'){try{handleEvent(JSON.parse(message.data));}catch(error){stop(`Failed: ${error.message}`,false);}return;}const data=message.data instanceof ArrayBuffer?message.data:await message.data.arrayBuffer();if(socket===currentSocket)playPcm16(data);};socket.onerror=()=>{if(socket===currentSocket)setStatus('Connection error…');};socket.onclose=()=>{if(socket===currentSocket)stop('Connection closed.',false);};connectionTimer=setTimeout(()=>{if(socket===currentSocket && !audioReady)stop('Gemini connection timed out.',false);},20000); }
+      function toggleMute() { muted=!muted;muteBtn.setAttribute('aria-pressed',String(muted));muteBtn.textContent=muted?'Unmute':'Mute';setStatus(muted?'Microphone muted — audio is still playing':'Live — keep walking or start talking'); }
+      startBtn.addEventListener('click',()=>start().catch((error)=>stop(`Failed: ${error.message}`))); startPanelBtn.addEventListener('click',()=>start().catch((error)=>stop(`Failed: ${error.message}`))); stopBtn.addEventListener('click',()=>stop()); stopPanelBtn.addEventListener('click',()=>stop()); muteBtn.addEventListener('click',toggleMute); simulateBtn.addEventListener('click',toggleSimulation); document.getElementById('architecture').addEventListener('click',()=>applyRehearsalStage('base')); document.getElementById('music').addEventListener('click',()=>applyRehearsalStage('v2')); document.getElementById('rehearsal-v2').addEventListener('click',()=>applyRehearsalStage('v2')); document.getElementById('rehearsal-v3').addEventListener('click',()=>applyRehearsalStage('v3')); document.getElementById('rehearsal-v3b').addEventListener('click',()=>applyRehearsalStage('v3b')); document.getElementById('rehearsal-v4').addEventListener('click',()=>applyRehearsalStage('v4')); document.getElementById('take-detour').addEventListener('click',()=>resolveDetour(true)); document.getElementById('stay-route').addEventListener('click',()=>resolveDetour(false)); window.addEventListener('pagehide',()=>stop('Closed',true));
+      setRoute(currentRoute,false); fetch('/gemini/health').then((response)=>{if(!response.ok)throw new Error('Server unavailable');return response.json();}).then((setup)=>setStatus(setup.configured?`Ready — ${setup.model} · ${setup.voice}`:'Demo ready — add GOOGLE_API_KEY to enable live voice.')).catch(()=>setStatus('Demo ready — start the local server to enable live voice.'));
     </script>
   </body>
 </html>

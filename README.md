@@ -1,13 +1,10 @@
-# Gradient voice demo
+# Sidewalk walking podcast demo
 
-A local browser voice demo using Pydantic AI and Gemini Live. The browser sends
-microphone audio to FastAPI over a WebSocket, Pydantic AI runs Python tools on
-the server, and Gemini's audio response streams back over the same connection.
-The Google API key remains on the backend.
-
-This repository also contains a separate Flutter proof of concept at
-[`apps/gemini_live_flutter`](apps/gemini_live_flutter). Its Firebase setup and
-device instructions are in the [Flutter demo README](apps/gemini_live_flutter/README.md).
+A local browser prototype for a continuous, location-aware walking podcast using
+Pydantic AI and Gemini Live. The browser sends microphone audio and simulated
+location updates to FastAPI over a WebSocket. Pydantic AI runs the route tools
+on the server, and Gemini's audio streams back over the same connection. The
+Google API key remains on the backend.
 
 ## Run the HTML demo
 
@@ -18,14 +15,23 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13 or newer.
 3. Start the server:
 
    ```bash
-   uv run uvicorn main:app --host 127.0.0.1 --port 8000
+   uv run uvicorn main:app --host 127.0.0.1 --port 8888
    ```
 
-4. Open **http://127.0.0.1:8000**, click **Start call**, and allow microphone
+4. Open **http://127.0.0.1:8888**, click **Start live walk**, and allow microphone
    access.
-5. Ask “What time is it in Tokyo?” or “What's your refund policy?” to exercise
-   the server-side tools.
-6. Click **Stop call** to close the WebSocket and release the microphone.
+5. The preview starts with a fake 25-minute Chinatown → Soho route. The brief
+   shows the time constraint and preferences: Tudor architecture, history, and
+   Chinese food. Narration advances automatically; speaking interrupts it so
+   you can ask a question.
+6. Say **“Can we talk about music?”** to exercise the nearby music search and
+   route re-ranking. The page also shows the V2 removed/added stops and the
+   preference delta.
+7. Use **V2 Music**, **V3 Mural**, **V3B Detour**, and **V4 Food** under
+   **Rehearse the walk** to run the deterministic fake story beats. V3B exposes
+   the route-deviation choice; **Play route** sends simulated location updates
+   when the WebSocket is live and moves the dot locally when offline.
+8. Click **End** to close the WebSocket and release the microphone.
 
 The page starts without a key and shows setup instructions. Configuration is
 read for every new call, so saving `.env` is enough; no server restart is
@@ -40,9 +46,9 @@ needed. Shell environment variables take precedence over `.env`.
 | `GEMINI_REALTIME_VOICE` | `Puck` |
 
 Audio is sent to Gemini and Gemini API usage is billed to your Google account.
-The refund and return policies are fictional examples. Transcripts and tool
-activity appear on the page, while detailed tool execution is logged in the
-terminal.
+The route, points of interest, and stories are fictional prototype data.
+Transcripts, podcast state, route diffs, rehearsal decisions, and tool activity
+appear on the page, while detailed tool execution is logged in the terminal.
 
 Microphone access requires localhost or HTTPS. This demo has no authentication,
 so keep it bound to `127.0.0.1`. Add application authentication and use `wss://`
@@ -50,21 +56,29 @@ before exposing the relay beyond a trusted development network.
 
 ## WebSocket protocol
 
-The browser connects to `ws://127.0.0.1:8000/gemini/voice`. It sends raw signed
+The browser connects to `ws://127.0.0.1:8888/gemini/voice`. It sends raw signed
 PCM16 little-endian mono microphone frames at 16 kHz and receives PCM16 mono
 model audio at 24 kHz. JSON frames carry readiness, transcripts, tool activity,
-barge-in output clearing, turn completion, reconnection, and errors.
+route updates, podcast state, location progress, barge-in output clearing, turn
+completion, reconnection, and errors.
 
-The setup endpoint is `http://127.0.0.1:8000/gemini/health`. The complete frame
-contract is also recorded in
-[`FLUTTER_PROXY_INTEGRATION_PROMPT.md`](FLUTTER_PROXY_INTEGRATION_PROMPT.md).
+The setup endpoint is `http://127.0.0.1:8888/gemini/health`.
+
+The browser rehearsal controls use fake route data so the complete Chinatown /
+Soho conversation can be demonstrated without a key: V1 starts at 25 minutes,
+V2 searches nearby for music and counterculture, V3 recalls a mural, V3B asks
+whether to take the detour, and V4 adds a food stop. The controls send the
+corresponding `demo_theme` preferences when a live WebSocket is open.
 
 ## Files
 
-- `main.py`: shared agent instructions, tools, route setup, and legacy OpenAI
-  WebRTC endpoints.
+- `main.py`: shared agent instructions, walking tools, route setup, and the
+  application entrypoint.
 - `gemini_proxy.py`: Pydantic AI Gemini Live WebSocket relay.
-- `index.html`: browser microphone capture, PCM playback, status, and
-  transcripts.
+- `walk_demo.py`: per-session fake routes, POIs, location progress, and podcast
+  chapter sequencing.
+- `index.html`: browser microphone capture, PCM playback, route UI, simulated
+  location, podcast state, and transcripts.
 - `tests/test_gemini_proxy.py`: relay configuration and protocol tests.
+- `tests/test_walk_demo.py`: route and continuous-podcast state tests.
 - `uv.lock`: pinned Python dependencies, including Pydantic AI 2.46.0.
