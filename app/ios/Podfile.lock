@@ -1,0 +1,28 @@
+PODS:
+  - apple_maps_flutter (0.0.1):
+    - Flutter
+  - Flutter (1.0.0)
+  - flutter_tts (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - apple_maps_flutter (from `.symlinks/plugins/apple_maps_flutter/ios`)
+  - Flutter (from `Flutter`)
+  - flutter_tts (from `.symlinks/plugins/flutter_tts/ios`)
+
+EXTERNAL SOURCES:
+  apple_maps_flutter:
+    :path: ".symlinks/plugins/apple_maps_flutter/ios"
+  Flutter:
+    :path: Flutter
+  flutter_tts:
+    :path: ".symlinks/plugins/flutter_tts/ios"
+
+SPEC CHECKSUMS:
+  apple_maps_flutter: 2237d66a8e242082a2d88134af372f7b3375d7a6
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_tts: 35ac3c7d42412733e795ea96ad2d7e05d0a75113
+
+PODFILE CHECKSUM: 53a6aebc29ccee84c41f92f409fc20cd4ca011f1
+
+COCOAPODS: 1.16.2

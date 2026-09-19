@@ -10,6 +10,7 @@ image = (
     .uv_sync()
     .add_local_python_source("main", "gemini_proxy", "walk_demo")
     .add_local_file("index.html", "/root/index.html")
+    .add_local_dir("assets", "/root/assets")
 )
 
 google_secret = modal.Secret.from_name(

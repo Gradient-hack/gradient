@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic_ai import Agent, RunContext
 
 from gemini_proxy import create_gemini_router
@@ -136,6 +137,7 @@ def get_walk_status(ctx: RunContext[WalkSessionDeps]) -> dict[str, object]:
 
 app = FastAPI()
 app.include_router(create_gemini_router(agent, configuration))
+app.mount("/assets", StaticFiles(directory=ROOT / "assets"), name="assets")
 
 
 @app.get("/")

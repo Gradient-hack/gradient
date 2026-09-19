@@ -3,8 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#fff9ed" />
-    <title>Waddle — podcast walks</title>
+    <meta name="theme-color" content="#f4f4f4" />
+    <title>Gradient — podcast walks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet" />
     <style>
       :root {
         --cream: #fff9ed;
@@ -90,6 +93,8 @@
       .route-experience::-webkit-scrollbar { display: none; }
       .map-stage { background: var(--map); border-bottom: 2px solid var(--ink); height: 340px; overflow: hidden; position: relative; }
       .map-stage svg { height: 100%; width: 100%; }
+      .map-reference { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+      .map-stage:has(.map-reference) svg { display: none; }
       .map-block { fill: #ded9c6; stroke: #cbc3a8; stroke-width: 1; }
       .map-street { fill: none; stroke: #faf8ee; stroke-linecap: round; stroke-width: 16; }
       .map-street.small { stroke-width: 8; }
@@ -140,6 +145,7 @@
       .photo-actions { display: grid; gap: 9px; grid-template-columns: 1fr 1.6fr; }
       .photo-actions .primary-cta { min-height: 48px; }
       .player { background: var(--cream); border-top: 2px solid var(--ink); bottom: 0; left: 0; padding: 13px 20px 18px; position: absolute; right: 0; z-index: 8; }
+      .player.data-only-player { display: none; }
       .progress-track { background: #e2d7bd; border: 2px solid var(--ink); border-radius: 999px; height: 9px; overflow: hidden; }
       .progress-value { background: var(--yellow); height: 100%; transition: width .25s ease; width: 0%; }
       .progress-caption { color: var(--muted); display: flex; font-size: 12px; font-variant-numeric: tabular-nums; justify-content: space-between; margin-top: 7px; }
@@ -173,10 +179,300 @@
       .event-log { max-height: 60px; overflow: auto; }
       .hidden-control { display: none; }
       .sr-only { clip: rect(0,0,0,0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+
+      /* The demo is presented as one visible storyboard. JavaScript marks one
+         stage as current while the other screens stay on the page for context. */
+      html { scroll-behavior: smooth; }
+      body { align-items: stretch; display: block; padding: 0; }
+      .flow-page { margin: 0 auto; max-width: 1260px; padding: 48px 32px 110px; }
+      .flow-header { align-items: end; display: flex; gap: 32px; justify-content: space-between; margin-bottom: 38px; }
+      .flow-header h1 { font-size: clamp(40px, 6vw, 76px); line-height: .92; margin: 8px 0 12px; max-width: 11ch; }
+      .flow-header .lede { margin: 0; max-width: 620px; }
+      .flow-status { align-items: center; background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; display: flex; flex: 0 0 auto; gap: 10px; padding: 12px 14px; }
+      .flow-status .live-badge { display: inline-block; }
+      .storyboard { align-items: start; display: grid; gap: 42px; grid-template-columns: 230px minmax(0, 1fr); }
+      .timeline { position: sticky; top: 22px; }
+      .timeline ol { display: grid; gap: 0; list-style: none; margin: 0; padding: 0; }
+      .timeline li { min-height: 70px; padding-left: 52px; position: relative; }
+      .timeline li::before { background: var(--line); content: ""; left: 18px; position: absolute; top: 38px; bottom: -2px; width: 2px; }
+      .timeline li:last-child::before { display: none; }
+      .timeline-step { background: transparent; border: 0; font-size: 14px; padding: 8px 0; text-align: left; width: 100%; }
+      .timeline-number { align-items: center; background: var(--paper); border: 2px solid var(--ink); border-radius: 50%; display: flex; font-size: 12px; font-weight: 850; height: 38px; justify-content: center; left: 0; position: absolute; top: 0; width: 38px; }
+      .timeline-step strong { display: block; font-size: 14px; }
+      .timeline-step span:last-child { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+      .timeline li.is-current .timeline-number { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); }
+      .timeline li.is-current .timeline-step strong { color: var(--blue); }
+      .timeline li.is-complete .timeline-number { background: var(--ink); color: #fff; }
+      .stage-list { display: grid; gap: 44px; }
+      .flow-stage { opacity: .56; position: relative; transition: opacity .2s ease, transform .2s ease; }
+      .flow-stage.is-complete { opacity: .78; }
+      .flow-stage.is-active { opacity: 1; transform: translateX(8px); }
+      .stage-label { align-items: center; display: flex; gap: 10px; margin: 0 0 10px 8px; }
+      .stage-label strong { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+      .stage-state { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 850; padding: 4px 8px; text-transform: uppercase; }
+      .flow-stage.is-active .stage-state { background: var(--yellow); border-color: var(--ink); color: var(--ink); }
+      .flow-stage.is-complete .stage-state { background: var(--ink); border-color: var(--ink); color: #fff; }
+      .screen-frame { background: var(--cream); border: 2px solid var(--line); border-radius: 38px; box-shadow: 0 12px 34px rgba(72,59,32,.08); overflow: hidden; position: relative; }
+      .flow-stage.is-active .screen-frame { border-color: var(--ink); box-shadow: 8px 8px 0 var(--yellow), 0 22px 55px rgba(72,59,32,.13); }
+      .screen-top { align-items: center; display: grid; grid-template-columns: 1fr auto 1fr; height: 58px; padding: 12px 25px 0; }
+      .screen-top time { font-size: 13px; font-weight: 800; }
+      .screen-top .dynamic-island { height: 28px; width: 92px; }
+      .screen-top .phone-signals { font-size: 10px; }
+      .screen-content { padding: 22px 28px 32px; }
+      .screen-content h2 { font-size: clamp(31px, 5vw, 51px); line-height: .98; margin-bottom: 12px; }
+      .screen-content .lede { font-size: 16px; margin-bottom: 24px; }
+      .stage-grid { display: grid; gap: 26px; grid-template-columns: minmax(0, 1fr) minmax(260px, .78fr); }
+      .stage-note { align-self: center; background: rgba(255,255,255,.56); border: 1px solid var(--line); border-radius: 20px; padding: 19px; }
+      .stage-note h3 { font-size: 15px; margin-bottom: 7px; }
+      .stage-note p { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 0; }
+      .flow-stage:not(.is-active) .screen-frame button,
+      .flow-stage:not(.is-active) .screen-frame input { pointer-events: none; }
+      .compact-form { display: grid; gap: 18px; }
+      .compact-form .choice-group { display: grid; gap: 8px; }
+      .compact-form .choice-group legend { margin: 0; }
+      .form-actions { align-items: center; display: flex; gap: 12px; }
+      .form-actions .primary-cta { flex: 1; }
+      .text-button { background: transparent; border: 0; color: var(--muted); font-size: 13px; font-weight: 750; padding: 8px; }
+      .spoken-request { background: #fff; border: 2px solid var(--ink); border-radius: 22px; margin-bottom: 20px; padding: 20px; }
+      .spoken-request .eyebrow { margin-bottom: 9px; }
+      .spoken-request blockquote { font-family: Georgia, "Times New Roman", serif; font-size: 23px; line-height: 1.25; margin: 0; }
+      .generate-layout { align-items: start; display: grid; gap: 28px; grid-template-columns: minmax(250px,.75fr) minmax(0,1.25fr); }
+      .writing-content { padding-top: 18px; }
+      .writing-content .sound-bars { height: 54px; margin-bottom: 20px; }
+      .writing-content h2 { font-size: 38px; }
+      .route-preview-card { background: #fff; border: 2px solid var(--ink); border-radius: 24px; padding: 20px; }
+      .route-preview-card.is-pending { filter: grayscale(.35); opacity: .42; }
+      .route-summary h2 { font-size: 30px; }
+      .route-preview-card .poi-list { gap: 10px; }
+      .route-preview-card .poi-status { display: none; }
+      .route-preview-card .poi-item { grid-template-columns: 32px 1fr; }
+      .route-preview-card .poi-number { height: 30px; width: 30px; }
+      .route-preview-card .primary-cta { margin-top: 17px; }
+      .route-preview-card.data-only { display: none; }
+      #start:disabled { visibility: hidden; }
+      .podcast-layout { display: grid; gap: 0; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); }
+      .podcast-layout .map-stage { border-bottom: 0; border-right: 2px solid var(--ink); height: 520px; }
+      .podcast-panel { background: #fff; display: flex; flex-direction: column; min-height: 520px; padding: 30px 25px 24px; }
+      .podcast-panel h2 { font-size: 38px; }
+      .podcast-panel .podcast-hint { color: var(--muted); display: block; font-size: 13px; line-height: 1.5; }
+      .podcast-state-row { align-items: center; display: flex; justify-content: space-between; }
+      .state-label { color: var(--blue); font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+      .speaker-bars { align-items: end; display: flex; gap: 4px; height: 38px; margin: 22px 0; }
+      .speaker-bars i { animation: write-wave .8s ease-in-out infinite alternate; background: var(--yellow); border: 1.5px solid var(--ink); border-radius: 5px; height: 34%; width: 9px; }
+      .speaker-bars i:nth-child(2) { height: 72%; animation-delay: -.4s; }
+      .speaker-bars i:nth-child(3) { height: 95%; animation-delay: -.1s; }
+      .speaker-bars i:nth-child(4) { height: 62%; animation-delay: -.6s; }
+      .speaker-bars i:nth-child(5) { height: 80%; animation-delay: -.25s; }
+      .player { border: 0; margin-top: auto; padding: 18px 0 0; position: static; }
+      .wrong-turn-cta { margin-top: 18px; }
+      .route-diff { margin: 0; }
+      .reroute-layout { display: grid; gap: 25px; grid-template-columns: 1fr 1fr; }
+      .reroute-map { background: var(--map); border: 2px solid var(--ink); border-radius: 24px; min-height: 310px; overflow: hidden; position: relative; }
+      .reroute-map::before, .reroute-map::after { border-radius: 999px; content: ""; position: absolute; }
+      .reroute-map::before { border: 5px dashed #d3a84e; height: 190px; left: 18%; top: 55px; transform: rotate(-12deg); width: 58%; }
+      .reroute-map::after { background: #557c83; border: 4px solid #fff; box-shadow: 0 0 0 3px #557c83; height: 18px; left: 60%; top: 118px; width: 18px; }
+      .reroute-map .wrong-pin { align-items: center; background: #fff; border: 2px solid var(--ink); border-radius: 999px; display: flex; font-size: 12px; font-weight: 800; gap: 7px; left: 18px; padding: 8px 11px; position: absolute; top: 18px; }
+      .reroute-copy { display: flex; flex-direction: column; gap: 14px; }
+      .reroute-copy .primary-cta { margin-top: auto; }
+      .photo-layout { display: grid; gap: 24px; grid-template-columns: minmax(280px,1fr) minmax(260px,.8fr); }
+      .photo-layout .camera-frame { height: 360px; }
+      .demo-mural { background: linear-gradient(135deg,#1f7787 0 28%,#f5c447 28% 47%,#cb5f48 47% 68%,#f3dfbf 68%); inset: 0; position: absolute; }
+      .demo-mural::before { background: radial-gradient(circle at 50% 45%,#fff 0 12%,transparent 13%), radial-gradient(circle at 48% 44%,#221f1b 0 20%,transparent 21%); content: ""; inset: 13%; opacity: .75; position: absolute; }
+      .photo-check { background: #fff; border: 2px solid var(--ink); border-radius: 20px; padding: 20px; }
+      .photo-check-status { color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .photo-check-status.is-verified { color: #176b42; font-weight: 750; }
+      .end-layout { align-items: center; display: grid; gap: 32px; grid-template-columns: minmax(0,1fr) 260px; }
+      .end-stats { display: grid; gap: 9px; grid-template-columns: repeat(3,1fr); margin: 24px 0; }
+      .end-stat { background: #fff; border: 2px solid var(--ink); border-radius: 16px; padding: 15px; }
+      .end-stat strong { display: block; font-family: Georgia,serif; font-size: 26px; }
+      .end-stat span { color: var(--muted); font-size: 11px; }
+      .end-mark { align-items: center; background: var(--yellow); border: 3px solid var(--ink); border-radius: 50%; display: flex; font-family: Georgia,serif; font-size: 78px; height: 220px; justify-content: center; width: 220px; }
+      .advanced-demo { margin-top: 16px; }
+      .advanced-demo .rehearsal-buttons { grid-template-columns: repeat(4,1fr); }
+
+      /* Portrait phone storyboard */
+      .flow-page { max-width: none; overflow: hidden; }
+      .flow-header { margin-left: auto; margin-right: auto; max-width: 1120px; }
+      .storyboard { display: block; }
+      .timeline { background: var(--canvas); margin: 0 auto 28px; max-width: 1120px; padding: 8px 0 14px; position: sticky; top: 0; z-index: 30; }
+      .timeline ol { display: grid; grid-template-columns: repeat(6, 1fr); }
+      .timeline li { min-height: 52px; padding: 0 8px 0 42px; }
+      .timeline li::before { bottom: auto; height: 2px; left: 34px; right: -2px; top: 18px; width: auto; }
+      .timeline-number { height: 36px; width: 36px; z-index: 1; }
+      .stage-list { display: flex; gap: 34px; margin: 0 -32px; overflow-x: auto; padding: 12px max(32px, calc((100vw - 430px) / 2)) 48px; scroll-padding-inline: max(32px, calc((100vw - 430px) / 2)); scroll-snap-type: x mandatory; scrollbar-color: var(--ink) var(--line); width: auto; }
+      .flow-stage { flex: 0 0 430px; scroll-snap-align: center; width: 430px; }
+      .flow-stage.is-active { transform: translateY(-6px); }
+      .stage-label { margin-left: auto; margin-right: auto; max-width: 430px; width: 100%; }
+      .screen-frame { border-radius: 52px; height: 780px; margin: 0 auto; max-width: 430px; min-height: 0; overflow: hidden; width: 100%; }
+      .screen-top { height: 78px; padding: 17px 32px 0; }
+      .screen-top time { font-size: 16px; }
+      .screen-top .dynamic-island { height: 38px; width: 126px; }
+      .screen-top .phone-signals { font-size: 12px; }
+      .screen-frame > .screen-content { height: calc(100% - 78px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+      .screen-frame > .screen-content::-webkit-scrollbar { display: none; }
+      .screen-content { padding: 24px 28px 42px; }
+      .stage-grid,
+      .generate-layout,
+      .podcast-layout,
+      .reroute-layout,
+      .photo-layout,
+      .end-layout { grid-template-columns: 1fr; }
+      .stage-note { margin-top: 4px; }
+      .generate-layout { gap: 24px; }
+      .route-preview-card { padding: 17px; }
+      .route-preview-card .route-summary h2 { font-size: 28px; }
+      .podcast-layout .map-stage { border-bottom: 2px solid var(--ink); border-right: 0; height: 285px; }
+      .podcast-panel { min-height: 493px; padding: 27px 25px 30px; }
+      .podcast-panel h2 { font-size: 34px; }
+      .reroute-map { min-height: 260px; }
+      .photo-layout .camera-frame { height: 275px; }
+      .photo-check { padding: 17px; }
+      .photo-actions { grid-template-columns: 1fr; }
+      #finish-walk { margin-top: 11px; }
+      .end-layout { align-content: center; min-height: 650px; }
+      .end-mark { height: 150px; margin: 0 auto; width: 150px; }
+      .end-stats { grid-template-columns: 1fr; }
+      .advanced-demo { margin-left: auto; margin-right: auto; max-width: 430px; }
+      .stage-external-actions { display: grid; gap: 10px; margin: 18px auto 0; max-width: 390px; }
+      .flow-stage:not(.is-active) .stage-external-actions { opacity: .5; pointer-events: none; }
+      .reroute-note { margin: 16px 0 0; padding: 13px; }
+      .reroute-note .diff-heading { align-items: start; }
+      .reroute-note .diff-heading h2 { font-size: 18px; }
+      .reroute-note .diff-grid { display: none; }
+
+      @media (max-width: 760px) {
+        .flow-page { padding-inline: 18px; }
+        .flow-header { align-items: start; flex-direction: column; }
+        .timeline { background: var(--canvas); margin: 0 -18px 28px; overflow-x: auto; padding: 8px 18px 14px; position: sticky; top: 0; z-index: 30; }
+        .timeline ol { display: flex; min-width: 710px; }
+        .timeline li { min-height: 48px; min-width: 118px; padding: 0 0 0 38px; }
+        .timeline li::before { bottom: auto; height: 2px; left: 32px; right: -1px; top: 18px; width: auto; }
+        .timeline-number { height: 36px; width: 36px; z-index: 1; }
+        .timeline-step span:last-child { display: none; }
+        .stage-list { gap: 18px; margin: 0 -18px; padding-inline: max(18px, calc((100vw - 430px) / 2)); scroll-padding-inline: max(18px, calc((100vw - 430px) / 2)); }
+      }
+      @media (max-width: 560px) {
+        .flow-page { padding: 28px 12px 80px; }
+        .flow-header h1 { font-size: 43px; }
+        .flow-status { width: 100%; }
+        .screen-frame { border-radius: 38px; height: 720px; }
+        .flow-stage { flex-basis: calc(100vw - 32px); width: calc(100vw - 32px); }
+        .stage-list { padding-inline: 16px; scroll-padding-inline: 16px; }
+        .screen-top { height: 70px; padding-inline: 24px; }
+        .screen-top .dynamic-island { height: 34px; width: 112px; }
+        .screen-frame > .screen-content { height: calc(100% - 70px); }
+        .screen-content { padding: 18px 18px 26px; }
+        .compact-form .choice-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; }
+        .route-preview-card { padding: 15px; }
+        .photo-layout .camera-frame { height: 250px; }
+        .podcast-layout .map-stage { height: 250px; }
+        .podcast-panel { min-height: 468px; }
+        .end-stats { grid-template-columns: 1fr; }
+        .end-mark { height: 160px; margin: auto; width: 160px; }
+        .advanced-demo .rehearsal-buttons { grid-template-columns: repeat(2,1fr); }
+      }
       @media (max-width: 560px) {
         body { padding: 0; }
         .phone-shell { border: 0; border-radius: 0; box-shadow: none; height: 100dvh; max-width: none; min-height: 0; }
         .setup-screen { padding-inline: 22px; }
+      }
+
+      /* Gradient Flutter app visual system */
+      :root {
+        --cream: #f4f4f4;
+        --canvas: #eef4ef;
+        --paper: #ffffff;
+        --ink: #111111;
+        --muted: #6e6e7a;
+        --faint: #aeaeb2;
+        --line: #e4e4eb;
+        --yellow: #ffb800;
+        --yellow-soft: #fff4d6;
+        --blue: #1b8a3f;
+        --blue-soft: #eaf7e7;
+        --map: #e8eee8;
+        --primary: #39ad34;
+        --primary-dark: #1b8a3f;
+        --mint: #3ddcb4;
+        --coral: #ff6b6b;
+        --shadow: 0 24px 65px rgba(17, 17, 17, .12);
+      }
+      body { background: linear-gradient(135deg, #eaf7e7, #e3faf3); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      h1, h2, h3, .display, .route-summary h2, .section-heading h3 { font-family: "Bricolage Grotesque", Inter, sans-serif; letter-spacing: -.035em; }
+      .flow-header h1, .gradient-wordmark { background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--mint)); background-clip: text; color: transparent; -webkit-background-clip: text; }
+      .flow-header .lede { color: var(--muted); }
+      .flow-status { border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(17,17,17,.06); }
+      .brand-kicker, .eyebrow { color: var(--muted); letter-spacing: .08em; }
+      .gradient-wordmark { font-family: "Bricolage Grotesque", Inter, sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 22px; text-transform: none; }
+      .timeline { background: rgba(238,244,239,.94); backdrop-filter: blur(18px); }
+      .timeline li::before { background: var(--line); }
+      .timeline-number { border: 1px solid var(--line); }
+      .timeline li.is-current .timeline-number { background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--mint)); border: 0; box-shadow: 0 6px 16px rgba(57,173,52,.28); color: #fff; }
+      .timeline li.is-current .timeline-step strong { color: var(--primary-dark); }
+      .timeline li.is-complete .timeline-number { background: var(--ink); border-color: var(--ink); }
+      .stage-state { border-color: var(--line); }
+      .flow-stage.is-active .stage-state { background: rgba(57,173,52,.12); border-color: var(--primary); color: var(--primary-dark); }
+      .flow-stage.is-complete .stage-state { background: var(--ink); }
+      .stage-list { padding-left: max(32px, calc((100vw - 390px) / 2)); padding-right: max(32px, calc((100vw - 390px) / 2)); scroll-padding-inline: max(32px, calc((100vw - 390px) / 2)); }
+      .flow-stage { flex-basis: 390px; width: 390px; }
+      .stage-label, .advanced-demo { max-width: 390px; }
+      .screen-frame { aspect-ratio: 9 / 19.5; background: var(--cream); border: 1px solid #cfcfd6; border-radius: 52px; box-shadow: 0 24px 65px rgba(17,17,17,.12); height: auto; max-width: 390px; }
+      .flow-stage.is-active .screen-frame { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(57,173,52,.16), 0 28px 70px rgba(27,138,63,.18); }
+      .screen-top { height: 72px; padding: 16px 28px 0; }
+      .screen-top .dynamic-island { height: 34px; width: 112px; }
+      .screen-frame > .screen-content { height: calc(100% - 72px); }
+      .screen-content { background: var(--cream); padding: 22px 20px 28px; }
+      .screen-content h2 { font-weight: 800; }
+      .stage-note, .spoken-request, .photo-check, .end-stat, .route-diff { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: none; }
+      .spoken-request { padding: 18px; }
+      .spoken-request blockquote { font-family: "Bricolage Grotesque", Inter, sans-serif; font-size: 21px; font-weight: 600; }
+      .primary-cta { background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--mint)); border: 0; box-shadow: 0 8px 20px rgba(57,173,52,.28); color: #fff; font-size: 16px; font-weight: 600; min-height: 56px; }
+      .primary-cta:active { box-shadow: 0 3px 10px rgba(57,173,52,.25); transform: translateY(1px); }
+      .button-quiet { border: 1.5px solid var(--ink); box-shadow: none; min-height: 52px; }
+      .writing-step::before { border-color: var(--line); }
+      .writing-step.is-active::before { border-color: var(--primary); border-top-color: transparent; }
+      .writing-step.is-done::before { background: var(--mint); border-color: var(--mint); box-shadow: inset 0 0 0 6px var(--cream); }
+      #walk-writing .screen-content { background: linear-gradient(135deg, #eaf7e7, #e3faf3); }
+      .writing-content { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 100%; padding: 28px 0; text-align: center; }
+      .writing-content h2 { margin-bottom: 28px; }
+      .writing-steps { gap: 18px; margin-left: auto; margin-right: auto; max-width: 310px; text-align: left; width: 100%; }
+      #walk-writing #start { margin-top: 34px; max-width: 320px; }
+      #walk-writing .text-button { margin-top: 10px; }
+      .pulsing-hosts { align-items: center; display: flex; height: 96px; justify-content: center; margin-bottom: 34px; }
+      .pulsing-host { align-items: center; animation: host-pulse .9s ease-in-out infinite alternate; background: var(--primary-dark); border-radius: 50%; box-shadow: 0 0 22px rgba(27,138,63,.3); color: #fff; display: flex; font-family: "Bricolage Grotesque", sans-serif; font-size: 28px; font-weight: 800; height: 72px; justify-content: center; width: 72px; }
+      .pulsing-host + .pulsing-host { animation-direction: alternate-reverse; background: var(--coral); box-shadow: 0 0 22px rgba(255,107,107,.3); margin-left: 24px; }
+      @keyframes host-pulse { to { transform: scale(.86); } }
+      .podcast-layout { grid-template-rows: 45% 55%; }
+      .podcast-layout .map-stage { border: 0; height: auto; }
+      .podcast-panel { background: var(--cream); border-radius: 28px 28px 0 0; margin-top: -24px; min-height: 0; overflow: auto; padding: 25px 20px 28px; position: relative; z-index: 2; }
+      .podcast-panel h2 { font-size: 30px; }
+      .speaker-bars i { background: var(--primary); border: 0; }
+      .host-avatar { background: var(--coral); border: 0; color: #fff; }
+      .map-badge, .meta-chip { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+      .map-block { fill: #dce7dc; stroke: #cdd9cd; }
+      .route-line { stroke: var(--primary); }
+      .route-shadow { stroke: rgba(27,138,63,.16); }
+      .user-dot { fill: var(--primary-dark); }
+      .user-pulse { fill: rgba(61,220,180,.18); stroke: var(--mint); }
+      .reroute-map { background: linear-gradient(135deg, #eaf7e7, #e3faf3); border: 1px solid var(--line); border-radius: 16px; }
+      .reroute-map::before { border-color: var(--primary); }
+      .reroute-map .wrong-pin { border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(17,17,17,.08); }
+      .diff-heading h2 { font-family: "Bricolage Grotesque", sans-serif; }
+      .fake-badge { background: rgba(57,173,52,.12); border-color: var(--primary); color: var(--primary-dark); }
+      .camera-frame { border-radius: 16px; }
+      .photo-check-status.is-verified { color: var(--primary-dark); }
+      .end-mark { background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--mint)); border: 0; box-shadow: 0 18px 36px rgba(57,173,52,.24); color: #fff; }
+      .end-stat strong { font-family: "Bricolage Grotesque", sans-serif; }
+
+      @media (max-width: 760px) {
+        .stage-list { padding-left: max(18px, calc((100vw - 390px) / 2)); padding-right: max(18px, calc((100vw - 390px) / 2)); scroll-padding-inline: max(18px, calc((100vw - 390px) / 2)); }
+      }
+      @media (max-width: 430px) {
+        .flow-stage { flex-basis: calc(100vw - 32px); width: calc(100vw - 32px); }
+        .screen-frame { aspect-ratio: 9 / 19.5; height: auto; }
+        .stage-list { padding-inline: 16px; scroll-padding-inline: 16px; }
+        .screen-top { height: 66px; }
+        .screen-frame > .screen-content { height: calc(100% - 66px); }
       }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
@@ -184,54 +480,64 @@
     </style>
   </head>
   <body>
-    <main class="phone-shell" id="app" data-screen="configure">
-      <div class="phone-status" aria-hidden="true"><span class="phone-time">9:41</span><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div>
+    <main class="flow-page" id="app" data-screen="configure">
+      <header class="flow-header">
+        <div><p class="brand-kicker">Gradient · live prototype</p><h1>Your walk, from idea to memory.</h1><p class="lede">Every screen stays visible. Follow the highlighted step to rehearse the full location-aware podcast flow.</p></div>
+        <div class="flow-status"><span class="live-badge" id="live-badge">Offline</span><p class="connection-status" id="status" role="status" aria-live="polite">Checking Gemini setup…</p></div>
+      </header>
 
-      <section class="app-screen setup-screen" id="walk-setup" data-screen-panel="configure" aria-labelledby="setup-title">
-        <p class="brand-kicker">Waddle · Podcast walks</p>
-        <h1 id="setup-title">Where shall we wander?</h1>
-        <p class="lede">Tell us a little and we’ll write a walk, record two hosts, and show you the way.</p>
-        <form class="walk-form" id="walk-form">
-          <div class="form-field"><label for="walk-origin">Start and finish</label><input id="walk-origin" value="111 Charing Cross Road, London" autocomplete="street-address" /><p class="form-hint">We’ll loop you back here.</p></div>
-          <fieldset class="choice-group"><legend>What are you into?</legend><div class="choice-row" data-choice-group="interests" data-multiple="true"><button class="choice-chip" type="button" aria-pressed="true" data-value="oddities">Oddities</button><button class="choice-chip" type="button" aria-pressed="true" data-value="history">History</button><button class="choice-chip" type="button" aria-pressed="false" data-value="architecture">Architecture</button><button class="choice-chip" type="button" aria-pressed="false" data-value="food">Food</button><button class="choice-chip" type="button" aria-pressed="false" data-value="music">Music</button><button class="choice-chip" type="button" aria-pressed="false" data-value="ghosts">Ghosts</button></div></fieldset>
-          <fieldset class="choice-group"><legend>How long have you got?</legend><div class="choice-row" data-choice-group="duration"><button class="choice-chip" type="button" aria-pressed="false" data-value="15">15 min</button><button class="choice-chip" type="button" aria-pressed="true" data-value="30">30 min</button><button class="choice-chip" type="button" aria-pressed="false" data-value="60">60 min</button></div></fieldset>
-          <fieldset class="choice-group"><legend>Host mood</legend><div class="choice-row" data-choice-group="mood"><button class="choice-chip" type="button" aria-pressed="true" data-value="playful">Playful</button><button class="choice-chip" type="button" aria-pressed="false" data-value="calm">Calm</button><button class="choice-chip" type="button" aria-pressed="false" data-value="nerdy">Nerdy</button></div></fieldset>
-          <div class="quiz-row"><button class="switch" id="quiz-toggle" type="button" role="switch" aria-pressed="true" aria-label="Quiz me at each stop"></button><span>Quiz me at each stop</span></div>
-          <button class="primary-cta" id="make-walk" type="submit">Make my walk</button>
-        </form>
-      </section>
+      <div class="storyboard">
+        <nav class="timeline" aria-label="Prototype flow"><ol>
+          <li data-timeline-step="configure"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">1</span><strong>Home</strong><span>Choose the walk</span></button></li>
+          <li data-timeline-step="writing"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">2</span><strong>Generate</strong><span>Build route + show</span></button></li>
+          <li data-timeline-step="walking"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">3</span><strong>Podcast</strong><span>Start the live walk</span></button></li>
+          <li data-timeline-step="reroute"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">4</span><strong>Reroute</strong><span>Send wrong GPS</span></button></li>
+          <li data-timeline-step="photo"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">5</span><strong>Photo</strong><span>See + verify</span></button></li>
+          <li data-timeline-step="end"><button class="timeline-step" type="button" tabindex="-1"><span class="timeline-number">6</span><strong>End</strong><span>Finish the walk</span></button></li>
+        </ol></nav>
 
-      <section class="app-screen writing-screen" id="walk-writing" data-screen-panel="writing" aria-labelledby="writing-title">
-        <div class="writing-content"><div class="sound-bars" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><h2 id="writing-title">Writing your walk</h2><ol class="writing-steps" id="writing-steps"><li class="writing-step is-active">Finding oddities near you</li><li class="writing-step">Plotting a 30-minute loop</li><li class="writing-step">Writing the script</li><li class="writing-step">Recording Mo and June</li></ol></div>
-      </section>
+        <div class="stage-list">
+          <section class="flow-stage" data-stage="configure" id="walk-setup" aria-labelledby="setup-title">
+            <div class="stage-label"><strong>01 · Home</strong><span class="stage-state">Current</span></div>
+            <div class="screen-frame"><div class="screen-top" aria-hidden="true"><time>9:41</time><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div><div class="screen-content stage-grid">
+              <div><p class="gradient-wordmark">Gradient</p><h2 id="setup-title">Where shall we wander?</h2><p class="lede">A walking tour, hosted like a podcast.</p>
+                <form id="walk-form">
+                  <div class="spoken-request"><p class="eyebrow">Your request</p><blockquote>“I’ve got 25 minutes. Take me through Chinatown and Soho. I like Tudor architecture, history, and Chinese food.”</blockquote></div>
+                  <button class="primary-cta" id="make-walk" type="submit">Generate this walk</button>
+                </form>
+              </div>
+            </div></div>
+          </section>
 
-      <div class="route-experience">
-        <section class="map-stage" id="walk-map" aria-labelledby="map-caption">
-          <button class="map-back" id="back-to-setup" type="button">Back</button>
-          <div class="map-badges"><span class="map-badge" id="stop-badge">Stop 1 of 5</span><span class="map-badge" id="time-badge">0:00 / 30:00</span></div>
-          <svg id="route-map" viewBox="0 0 800 480" role="img" aria-label="Your walking route"><rect class="map-block" x="74" y="66" width="170" height="80" rx="11"></rect><rect class="map-block" x="315" y="34" width="175" height="92" rx="11"></rect><rect class="map-block" x="555" y="72" width="155" height="76" rx="11"></rect><rect class="map-block" x="91" y="266" width="146" height="103" rx="11"></rect><rect class="map-block" x="342" y="231" width="157" height="118" rx="11"></rect><rect class="map-block" x="583" y="268" width="126" height="103" rx="11"></rect><path class="map-street" d="M-20 182 C135 163 168 207 299 183 S542 129 820 190"></path><path class="map-street" d="M-12 407 C133 337 230 431 328 385 S575 364 823 408"></path><path class="map-street" d="M275 -20 C265 105 298 185 284 506"></path><path class="map-street" d="M517 -18 C491 90 544 205 527 500"></path><path class="map-street small" d="M41 46 C174 121 195 128 291 177 S484 238 771 229"></path><path class="map-street small" d="M45 319 C171 274 237 283 325 314 S558 274 769 311"></path><path class="map-street small" d="M170 -30 C218 96 209 159 158 267 S151 411 211 515"></path><path class="map-street small" d="M655 -22 C609 98 654 173 692 244 S678 395 632 510"></path><path id="route-shadow" class="route-shadow" d=""></path><path id="route-line" class="route-line" d=""></path><g id="poi-markers" aria-hidden="true"></g><circle id="user-pulse" class="user-pulse" cx="0" cy="0" r="18"></circle><circle id="user-dot" class="user-dot" cx="0" cy="0" r="10"></circle></svg>
-          <span class="sr-only" id="map-caption">Demo route through Chinatown and Soho</span>
-        </section>
+          <section class="flow-stage" data-stage="writing" id="walk-writing" aria-labelledby="writing-title">
+            <div class="stage-label"><strong>02 · Generate</strong><span class="stage-state">Next</span></div>
+            <div class="screen-frame"><div class="screen-top" aria-hidden="true"><time>9:41</time><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div><div class="screen-content generate-layout">
+              <div class="writing-content"><div class="pulsing-hosts" aria-hidden="true"><span class="pulsing-host">M</span><span class="pulsing-host">T</span></div><h2 id="writing-title">Writing your walk</h2><ol class="writing-steps" id="writing-steps"><li class="writing-step is-active">Reading the streets around you…</li><li class="writing-step">Digging up the good stories…</li><li class="writing-step">Plotting a route you can follow…</li><li class="writing-step">Mara and Theo are writing the intro…</li></ol><button class="primary-cta" id="start" type="button" disabled>Start podcast walk</button><button class="text-button" id="back-to-setup" type="button">← Change the brief</button></div>
+              <div class="route-preview-card data-only" id="route-preview" aria-hidden="true"><span id="route-duration">25 min</span><span id="route-distance">1.7 km loop</span><span id="route-theme-label">Architecture walk</span><h2 id="route-title">A short walk with a long memory</h2><p id="route-description">A 25-minute loop from Chinatown into Soho.</p><span id="route-poi-count">5 stops</span><span id="poi-count-label">5 stops</span><ol id="poi-list"></ol></div>
+            </div></div>
+          </section>
 
-        <section class="app-screen preview-screen" id="route-preview" data-screen-panel="preview" aria-labelledby="route-title">
-          <div class="meta-row"><span class="meta-chip" id="route-duration">30 min</span><span class="meta-chip" id="route-distance">1.6 km loop</span><span class="meta-chip">2 hosts</span></div>
-          <div class="route-summary"><span class="sr-only" id="route-theme-label">Oddities walk</span><h2 id="route-title">A 30-minute Soho oddities walk</h2><p id="route-description">Five things you’ve walked past a hundred times. Mo and June narrate; you look up.</p><div class="stat-row"><span id="route-poi-count">5 stops</span></div></div>
-          <section class="poi-section" id="route-stops" aria-labelledby="poi-title"><div class="section-heading"><h3 id="poi-title">Stops along the way</h3><span id="poi-count-label">5 stops</span></div><ol class="poi-list" id="poi-list"></ol></section>
-          <div class="route-actions"><button class="primary-cta" id="start" type="button">Start walking</button></div>
-        </section>
+          <section class="flow-stage" data-stage="walking" id="live-walk" aria-labelledby="chapter-title">
+            <div class="stage-label"><strong>03 · Start podcast</strong><span class="stage-state">Next</span></div>
+            <div class="screen-frame podcast-layout">
+              <section class="map-stage" id="walk-map" aria-labelledby="map-caption"><img class="map-reference" src="/assets/soho-route-map.png?v=2" alt="" /><div class="map-badges"><span class="map-badge" id="stop-badge">Stop 1 of 5</span><span class="map-badge" id="time-badge">0:00 / 30:00</span></div><svg id="route-map" viewBox="0 0 800 480" role="img" aria-label="Your walking route"><rect class="map-block" x="74" y="66" width="170" height="80" rx="11"></rect><rect class="map-block" x="315" y="34" width="175" height="92" rx="11"></rect><rect class="map-block" x="555" y="72" width="155" height="76" rx="11"></rect><rect class="map-block" x="91" y="266" width="146" height="103" rx="11"></rect><rect class="map-block" x="342" y="231" width="157" height="118" rx="11"></rect><rect class="map-block" x="583" y="268" width="126" height="103" rx="11"></rect><path class="map-street" d="M-20 182 C135 163 168 207 299 183 S542 129 820 190"></path><path class="map-street" d="M-12 407 C133 337 230 431 328 385 S575 364 823 408"></path><path class="map-street" d="M275 -20 C265 105 298 185 284 506"></path><path class="map-street" d="M517 -18 C491 90 544 205 527 500"></path><path class="map-street small" d="M41 46 C174 121 195 128 291 177 S484 238 771 229"></path><path class="map-street small" d="M45 319 C171 274 237 283 325 314 S558 274 769 311"></path><path class="map-street small" d="M170 -30 C218 96 209 159 158 267 S151 411 211 515"></path><path class="map-street small" d="M655 -22 C609 98 654 173 692 244 S678 395 632 510"></path><path id="route-shadow" class="route-shadow" d=""></path><path id="route-line" class="route-line" d=""></path><g id="poi-markers" aria-hidden="true"></g><circle id="user-pulse" class="user-pulse" cx="0" cy="0" r="18"></circle><circle id="user-dot" class="user-dot" cx="0" cy="0" r="10"></circle></svg><span class="sr-only" id="map-caption">Demo route through Chinatown and Soho</span></section>
+              <div class="podcast-panel"><div class="podcast-state-row"><span class="state-label" id="podcast-state-label">Ready to begin</span><strong>Mara + Theo</strong></div><div class="speaker-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><p class="eyebrow">Now at</p><h2 id="chapter-title">Chinatown Gate</h2><p id="chapter-description">The story stays with this place until your location reaches the next stop.</p><p class="podcast-hint">Talk over the hosts at any time. Ask “Can we talk about music?” to change the theme around your current location.</p><section class="route-diff reroute-note" id="route-diff" aria-labelledby="route-diff-title" hidden><div class="diff-heading"><div><p class="eyebrow">Route update</p><h2 id="route-diff-title">Rerouting from your location…</h2></div><span class="fake-badge">GPS</span></div><p id="route-diff-copy">We detected a wrong turn and are updating the walk without backtracking.</p><div class="diff-grid" aria-hidden="true"><div><ul id="removed-stops"></ul></div><div><ul id="added-stops"></ul></div><div><strong id="preference-delta">Waiting</strong></div></div></section><div class="next-chapter"><span>Up next</span><strong id="next-chapter-title">Gerrard Street</strong></div><div class="player data-only-player" id="player"><div class="progress-track" aria-label="Walk progress"><div class="progress-value" id="progress-value"></div></div><div class="progress-caption"><span id="progress-caption">Ready when you are</span><span id="eta-caption">—</span></div><div class="voice-controls"><button class="round-control" id="mute" type="button" aria-pressed="false" disabled aria-label="Mute microphone">◉</button><button class="round-control primary" id="start-panel" type="button" aria-label="Play walk">▶</button><button class="round-control" id="stop-panel" type="button" disabled aria-label="End walk">■</button></div></div></div>
+            </div>
+            <div class="stage-external-actions"><button class="primary-cta" id="go-reroute" type="button">Simulate wrong location →</button><button class="button-quiet" id="continue-photo" type="button" hidden>Continue to photo →</button></div>
+            <details class="advanced-demo"><summary>Other test events and live details</summary><div class="theme-buttons"><button id="architecture" type="button" aria-pressed="true">Local stories</button><button id="music" type="button" aria-pressed="false">Music</button></div><div class="rehearsal-buttons"><button id="rehearsal-v2" type="button" aria-pressed="false">Switch to music</button><button id="rehearsal-v3" type="button" aria-pressed="false">Remember photo</button><button id="rehearsal-v3b" type="button" aria-pressed="false">Wrong direction</button><button id="rehearsal-v4" type="button" aria-pressed="false">Find food</button></div><p class="rehearsal-status" id="rehearsal-status" aria-live="polite">The walk is following the planned route.</p><button class="button-quiet" id="simulate" type="button" aria-pressed="false">Play route</button><div class="transcript" id="transcript" role="log" aria-live="polite"><span class="empty-state">Your conversation will appear here.</span></div><div class="tool-status" id="tool-status">No tool activity yet.</div><div class="event-log" id="log" role="log"></div></details>
+          </section>
 
-        <section class="app-screen walking-screen" id="live-walk" data-screen-panel="walking" aria-labelledby="chapter-title">
-          <div class="chapter-card"><div class="podcast-state-row"><span class="state-label" id="podcast-state-label">Ready to begin</span></div><p class="eyebrow">Snap it</p><h2 id="chapter-title">The story in front of you</h2><p id="chapter-description">Your next story begins at this stop.</p><p class="podcast-hint">Narration stays with this place until your location reaches the next stop.</p><div class="camera-frame" id="camera-frame"><img id="photo-preview" alt="" hidden /><span>Frame what you can see at this stop</span></div><div class="host-prompt"><span class="host-avatar">Ju</span><span>Grab a picture before we move on. Proof you actually looked.</span></div><div class="photo-actions"><button class="button-quiet" id="skip-photo" type="button">Skip</button><button class="primary-cta" id="take-photo" type="button">▣&nbsp; Take photo</button><input class="sr-only" id="photo-input" type="file" accept="image/*" capture="environment" /></div><div class="next-chapter"><span>Up next</span><strong id="next-chapter-title">The next story will appear here</strong></div></div>
+          <section class="flow-stage" data-stage="photo" id="photo-stage" aria-labelledby="photo-title">
+            <div class="stage-label"><strong>05 · Photo</strong><span class="stage-state">Next</span></div>
+            <div class="screen-frame"><div class="screen-top" aria-hidden="true"><time>10:03</time><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div><div class="screen-content photo-layout"><div><p class="eyebrow">Snap it</p><h2 id="photo-title">Spirit of Soho Mural</h2><p class="lede">Theo asks for a picture. The app sends the image with GPS, the current stop, and the live conversation context.</p><div class="camera-frame" id="camera-frame"><div class="demo-mural" id="demo-mural"></div><img id="photo-preview" alt="" hidden /><span>Frame the mural</span></div></div><div class="photo-check"><div class="host-prompt"><span class="host-avatar">T</span><span>Grab a picture before we move on. Let’s check you found the mural.</span></div><p class="photo-check-status" id="photo-check-status">No photo sent yet.</p><div class="photo-actions"><button class="button-quiet" id="skip-photo" type="button">Use demo photo</button><button class="primary-cta" id="take-photo" type="button">▣&nbsp; Choose photo</button><input class="sr-only" id="photo-input" type="file" accept="image/*" capture="environment" /></div><button class="primary-cta" id="finish-walk" type="button" disabled>Finish walk →</button></div></div></div>
+          </section>
 
-          <section class="route-diff" id="route-diff" aria-labelledby="route-diff-title" hidden><div class="diff-heading"><div><p class="eyebrow">V2 · nearby search</p><h2 id="route-diff-title">Music re-ranking from your current location</h2></div><span class="fake-badge">Route update</span></div><p id="route-diff-copy">We kept the time limit and searched nearby for a better route.</p><div class="diff-grid"><div><span class="diff-label">Removed</span><ul id="removed-stops"></ul></div><div><span class="diff-label">Added</span><ul id="added-stops"></ul></div><div><span class="diff-label">Preference</span><strong id="preference-delta">Architecture → music</strong></div></div></section>
-
-          <details class="demo-controls"><summary>Demo events</summary><div class="theme-buttons"><button id="architecture" type="button" aria-pressed="true">Local stories</button><button id="music" type="button" aria-pressed="false">Music</button></div><p class="prompt-chip">Try saying “Can we talk about music?” during the live walk.</p><div class="rehearsal-buttons"><button id="rehearsal-v2" type="button" aria-pressed="false">Switch to music</button><button id="rehearsal-v3" type="button" aria-pressed="false">Remember photo</button><button id="rehearsal-v3b" type="button" aria-pressed="false">Wrong direction</button><button id="rehearsal-v4" type="button" aria-pressed="false">Find food</button></div><p class="rehearsal-status" id="rehearsal-status" aria-live="polite">The walk is following the planned route.</p><div class="simulation"><p>Move the fake GPS along the route.</p><button class="button-quiet" id="simulate" type="button" aria-pressed="false">Play route</button></div></details>
-
-          <details class="live-details"><summary>Live details</summary><p class="connection-status" id="status" role="status" aria-live="polite">Checking Gemini setup…</p><span class="live-badge" id="live-badge">Offline</span><section aria-labelledby="conversation-title"><div class="conversation-heading"><h3 id="conversation-title">Conversation</h3><span>live transcript</span></div><div class="transcript" id="transcript" role="log" aria-live="polite"><span class="empty-state">Your conversation will appear here.</span></div></section><section aria-labelledby="activity-title"><div class="activity-heading"><h3 id="activity-title">Behind the walk</h3><span>server activity</span></div><div class="tool-status" id="tool-status">No tool activity yet.</div><div class="event-log" id="log" role="log"></div></section></details>
-        </section>
+          <section class="flow-stage" data-stage="end" id="end-stage" aria-labelledby="end-title">
+            <div class="stage-label"><strong>06 · End</strong><span class="stage-state">Next</span></div>
+            <div class="screen-frame"><div class="screen-top" aria-hidden="true"><time>10:11</time><span class="dynamic-island"></span><span class="phone-signals">▮▮▮ ◉ ▰</span></div><div class="screen-content end-layout"><div><p class="brand-kicker">Walk complete</p><h2 id="end-title">You made the city your own.</h2><p class="lede">The route adapted to a wrong turn, remembered the mural, and kept the podcast tied to where you actually were.</p><div class="end-stats"><div class="end-stat"><strong>25</strong><span>minutes</span></div><div class="end-stat"><strong>4</strong><span>stories heard</span></div><div class="end-stat"><strong>1</strong><span>memory saved</span></div></div><button class="primary-cta" id="restart-walk" type="button">Plan another walk</button></div><div class="end-mark" aria-hidden="true">✓</div></div></div>
+          </section>
+        </div>
       </div>
-
-      <div class="player" id="player" hidden><div class="progress-track" aria-label="Walk progress"><div class="progress-value" id="progress-value"></div></div><div class="progress-caption"><span id="progress-caption">Ready when you are</span><span id="eta-caption">—</span></div><div class="voice-controls"><button class="round-control" id="mute" type="button" aria-pressed="false" disabled aria-label="Mute microphone">↺</button><button class="round-control primary" id="start-panel" type="button" aria-label="Play walk">▶</button><button class="round-control" id="stop-panel" type="button" disabled aria-label="End walk">▶|</button></div></div>
       <button class="hidden-control" id="stop" type="button" disabled>Stop</button>
     </main>
 <script>
@@ -287,6 +593,15 @@
       const stopBadge = document.getElementById('stop-badge');
       const timeBadge = document.getElementById('time-badge');
       const choiceGroups = [...document.querySelectorAll('[data-choice-group]')];
+      const flowStages = [...document.querySelectorAll('[data-stage]')];
+      const timelineSteps = [...document.querySelectorAll('[data-timeline-step]')];
+      const routePreview = document.getElementById('route-preview');
+      const goRerouteBtn = document.getElementById('go-reroute');
+      const continuePhotoBtn = document.getElementById('continue-photo');
+      const finishWalkBtn = document.getElementById('finish-walk');
+      const restartWalkBtn = document.getElementById('restart-walk');
+      const photoCheckStatus = document.getElementById('photo-check-status');
+      const demoMural = document.getElementById('demo-mural');
 
       const routePresets = {
         architecture: {
@@ -345,19 +660,44 @@
       function log(line) { const row = document.createElement('div'); row.textContent = line; logEl.append(row); while (logEl.children.length > 4) logEl.firstElementChild.remove(); logEl.scrollTop = logEl.scrollHeight; }
       function setStatus(message) { statusEl.textContent = message; }
       function setLiveState(isLive) { liveBadge.textContent = isLive ? 'Live' : 'Offline'; liveBadge.classList.toggle('is-live', isLive); }
-      function setScreen(screen) { appEl.dataset.screen=screen; playerEl.hidden=screen!=='walking'; if(screen==='walking') document.querySelector('.route-experience').scrollTop=0; }
+      const stageOrder = ['configure','writing','walking','reroute','photo','end'];
+      function setScreen(screen,{scroll=true}={}) {
+        appEl.dataset.screen=screen;
+        const activeIndex=stageOrder.indexOf(screen);
+        const visibleStage=screen==='reroute'?'walking':screen;
+        for(const stage of flowStages){
+          const index=stageOrder.indexOf(stage.dataset.stage);
+          const active=stage.dataset.stage===visibleStage;
+          stage.classList.toggle('is-active',active);
+          stage.classList.toggle('is-complete',index<activeIndex && !active);
+          const state=stage.querySelector('.stage-state');
+          state.textContent=active?'Current':index<activeIndex?'Done':'Next';
+          stage.setAttribute('aria-current',active?'step':'false');
+        }
+        for(const item of timelineSteps){
+          const index=stageOrder.indexOf(item.dataset.timelineStep);
+          item.classList.toggle('is-current',index===activeIndex);
+          item.classList.toggle('is-complete',index<activeIndex);
+        }
+        if(scroll){
+          const target=flowStages.find((stage)=>stage.dataset.stage===visibleStage);
+          target?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+        }
+      }
       function clearWritingTimers() { for(const timer of writingTimers) clearTimeout(timer); writingTimers=[]; }
       function selectedValues(group) { return [...document.querySelectorAll(`[data-choice-group="${group}"] [aria-pressed="true"]`)].map((button)=>button.dataset.value); }
       function beginWalkPlan() {
         clearWritingTimers();
-        const duration=Number(selectedValues('duration')[0] || 30), interests=selectedValues('interests'), focus=interests.includes('music')?'music':interests[0] || 'oddities';
+        const duration=Number(selectedValues('duration')[0] || 25), interests=selectedValues('interests').length?selectedValues('interests'):['architecture','history','food'], focus=interests.includes('music')?'music':interests[0] || 'architecture';
         const theme=focus==='music'?'music':'architecture', route=structuredClone(routePresets[theme]);
         currentTheme=theme; route.duration_minutes=duration; route.title=`A ${duration}-minute Soho ${focus} walk`; route.description=`A conversational loop shaped around ${interests.join(', ') || 'local stories'}, narrated as you move.`;
         writingSteps.forEach((step,index)=>{step.classList.toggle('is-active',index===0);step.classList.remove('is-done');});
         writingSteps[1].textContent=`Plotting a ${duration}-minute loop`;
         setScreen('writing');
         writingSteps.forEach((step,index)=>{if(index===0)return;writingTimers.push(setTimeout(()=>{writingSteps[index-1].classList.remove('is-active');writingSteps[index-1].classList.add('is-done');step.classList.add('is-active');},index*380));});
-        writingTimers.push(setTimeout(()=>{writingSteps.at(-1).classList.remove('is-active');writingSteps.at(-1).classList.add('is-done');setRoute(route);setScreen('preview');},1700));
+        routePreview.classList.add('is-pending');
+        startBtn.disabled=true;
+        writingTimers.push(setTimeout(()=>{writingSteps.at(-1).classList.remove('is-active');writingSteps.at(-1).classList.add('is-done');setRoute(route);routePreview.classList.remove('is-pending');startBtn.disabled=false;startBtn.focus({preventScroll:true});},1700));
       }
       function chapterDetails(chapter) { if (!chapter) return null; if (typeof chapter === 'string') return { title:chapter, description:'' }; return { id:chapter.id, title:chapter.title || chapter.name || chapter.label || chapter.subtitle || 'Untitled chapter', description:chapter.description || chapter.story || chapter.text || chapter.summary || chapter.subtitle || '' }; }
       function setPodcastState(event = {}) {
@@ -421,7 +761,11 @@
         const payload={type:'route_deviation',route_version:routeVersion,seq,sequence:seq,timestamp,latitude:location.latitude,longitude:location.longitude,current_location:location,location,accuracy_m:8,distance_from_route_m:SIMULATED_DEVIATION_DISTANCE_M,heading:SIMULATED_DEVIATION_HEADING_DEG,heading_deg:SIMULATED_DEVIATION_HEADING_DEG,reason:'wrong_direction'};
         routeDeviationPending={routeVersion,seq};
         rehearsalStatus.textContent='Wrong turn detected · recalculating…';
-        routeDiff.hidden=true;
+        routeDiff.hidden=false;
+        routeDiffEyebrow.textContent='GPS event received';
+        routeDiffTitle.textContent='Recalculating from Berwick Street…';
+        routeDiffCopy.textContent='Comparing a return to the old route with continuing from the observed location.';
+        renderRouteDiff(['Direct route to Soho Square'],['Checking nearby options…'],'Arrival time · interest fit · no backtracking');
         setPodcastState({state:'listening'});
         toolStatusEl.className='tool-status is-active';
         toolStatusEl.textContent='Recalculating route from your current location…';
@@ -469,7 +813,25 @@
       }
       function leaveWalk() {
         stop();
-        setScreen('preview');
+        setScreen('end');
+      }
+      function rememberPhoto({previewUrl=null}={}) {
+        if(previewUrl){
+          photoPreview.src=previewUrl;
+          photoPreview.hidden=false;
+          photoPreview.alt='Photo taken at the Spirit of Soho Mural';
+          demoMural.hidden=true;
+        }
+        photoCheckStatus.textContent='Checking the image against the current stop and GPS…';
+        photoCheckStatus.classList.remove('is-verified');
+        finishWalkBtn.disabled=true;
+        window.setTimeout(()=>{
+          photoCheckStatus.textContent='✓ Match confirmed: Spirit of Soho Mural. Public art and cultural history were added to memory.';
+          photoCheckStatus.classList.add('is-verified');
+          finishWalkBtn.disabled=false;
+          sendRehearsalControl('v3');
+          setStatus('Photo verified and saved to this walk.');
+        },650);
       }
       for(const group of choiceGroups){
         group.addEventListener('click',(event)=>{
@@ -483,7 +845,7 @@
         });
       }
       walkForm.addEventListener('submit',(event)=>{event.preventDefault();beginWalkPlan();});
-      quizToggle.addEventListener('click',()=>quizToggle.setAttribute('aria-pressed',String(quizToggle.getAttribute('aria-pressed')!=='true')));
+      quizToggle?.addEventListener('click',()=>quizToggle.setAttribute('aria-pressed',String(quizToggle.getAttribute('aria-pressed')!=='true')));
       backToSetupBtn.addEventListener('click',()=>{clearWritingTimers();stop('Walk closed.');setScreen('configure');});
       startBtn.addEventListener('click',enterWalk);
       startPanelBtn.addEventListener('click',()=>{if(socket)return;enterWalk();});
@@ -491,22 +853,34 @@
       stopPanelBtn.addEventListener('click',leaveWalk);
       muteBtn.addEventListener('click',toggleMute);
       simulateBtn.addEventListener('click',toggleSimulation);
+      goRerouteBtn.addEventListener('click',()=>{setScreen('reroute');goRerouteBtn.hidden=true;continuePhotoBtn.hidden=false;sendRouteDeviation();});
+      continuePhotoBtn.addEventListener('click',()=>setScreen('photo'));
       takePhotoBtn.addEventListener('click',()=>photoInput.click());
       photoInput.addEventListener('change',()=>{
         const [file]=photoInput.files;
         if(!file)return;
         if(photoObjectUrl)URL.revokeObjectURL(photoObjectUrl);
         photoObjectUrl=URL.createObjectURL(file);
-        photoPreview.src=photoObjectUrl;
-        photoPreview.hidden=false;
-        photoPreview.alt='Photo taken at the current stop';
-        applyRehearsalStage('v3');
-        rehearsalStatus.textContent='Photo captured locally · the mural memory is now attached to this walk.';
-        setStatus('Photo ready — the model can check it with the current place and GPS.');
+        rememberPhoto({previewUrl:photoObjectUrl});
       });
-      skipPhotoBtn.addEventListener('click',()=>{
-        document.querySelector('#camera-frame span').textContent='Photo skipped — the walk can continue';
-        setStatus('Photo skipped — keep walking or start talking.');
+      skipPhotoBtn.addEventListener('click',()=>rememberPhoto());
+      finishWalkBtn.addEventListener('click',()=>{stop('Walk complete.');setPodcastState({state:'completed'});setScreen('end');});
+      restartWalkBtn.addEventListener('click',()=>{
+        stop('Ready for another walk.');
+        clearWritingTimers();
+        currentTheme='architecture';
+        setRoute(routePresets.architecture,false);
+        routePreview.classList.add('is-pending');
+        startBtn.disabled=true;
+        finishWalkBtn.disabled=true;
+        photoCheckStatus.textContent='No photo sent yet.';
+        photoCheckStatus.classList.remove('is-verified');
+        photoPreview.hidden=true;
+        demoMural.hidden=false;
+        routeDiff.hidden=true;
+        goRerouteBtn.hidden=false;
+        continuePhotoBtn.hidden=true;
+        setScreen('configure');
       });
       document.getElementById('architecture').addEventListener('click',()=>applyRehearsalStage('base'));
       document.getElementById('music').addEventListener('click',()=>applyRehearsalStage('v2'));
@@ -516,7 +890,8 @@
       document.getElementById('rehearsal-v4').addEventListener('click',()=>applyRehearsalStage('v4'));
       window.addEventListener('pagehide',()=>stop('Closed',true));
       setRoute(currentRoute,false);
-      setScreen('configure');
+      routeDiff.hidden=true;
+      setScreen('configure',{scroll:false});
       fetch('/gemini/health').then((response)=>{if(!response.ok)throw new Error('Server unavailable');return response.json();}).then((setup)=>setStatus(setup.configured?`Ready — ${setup.model} · ${setup.voice}`:'Demo ready — add GOOGLE_API_KEY to enable live voice.')).catch(()=>setStatus('Demo ready — start the local server to enable live voice.'));
     </script>
   </body>
