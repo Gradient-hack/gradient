@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "768913540218",
+    "project_id": "lon-agentic26lon-9261",
+    "storage_bucket": "lon-agentic26lon-9261.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768913540218:android:4287299ba2a05ba97fe7c3",
+        "android_client_info": {
+          "package_name": "com.gradient.gradient_gemini_live"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACE6j3XjdHAHcQvZcktRFwX7I8pgDOHsQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

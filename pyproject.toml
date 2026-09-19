@@ -1,0 +1,9 @@
+[project]
+name = "gradient"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "pydantic-ai-slim[google-realtime,openai-realtime]==2.46.0",
+    "python-dotenv>=1.2.3",
+]

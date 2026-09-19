@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pydantic AI — Gemini voice agent</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 46rem; padding: 0 1rem; color: #111827; }
+      h1 { font-size: 1.4rem; }
+      button { padding: .55rem 1.1rem; margin-right: .5rem; border-radius: .5rem; border: 1px solid #d1d5db; cursor: pointer; }
+      button[disabled] { opacity: .5; cursor: default; }
+      #status { margin: 1rem 0; font-weight: 600; }
+      #tool-status { margin: 1rem 0; color: #374151; }
+      #transcript { white-space: pre-wrap; background: #f3f4f6; padding: 1rem; border-radius: .6rem; min-height: 6rem; }
+      #log { white-space: pre-wrap; background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: .6rem; min-height: 8rem; font-size: .85rem; }
+      .hint { color: #6b7280; }
+      section { margin-top: 1rem; }
+      section h2 { font-size: 1rem; margin-bottom: .5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Gemini Live voice agent</h1>
+    <p>
+      The browser streams microphone PCM audio through the local Pydantic AI relay. Gemini audio is
+      played locally, while Python runs the example tools on the server.
+    </p>
+    <p class="hint">Try: “What time is it in Tokyo?” or “What’s your refund policy?”</p>
+    <button id="start">Start call</button>
+    <button id="stop" disabled>Stop call</button>
+    <div id="status" role="status" aria-live="polite">Checking Gemini setup…</div>
+
+    <section>
+      <h2>Tool activity</h2>
+      <div id="tool-status">No tool activity yet.</div>
+    </section>
+    <section>
+      <h2>Transcript</h2>
+      <div id="transcript" role="log" aria-label="Conversation transcript"></div>
+    </section>
+    <section>
+      <h2>Connection events</h2>
+      <div id="log" role="log" aria-label="Connection events"></div>
+    </section>
+
+    <script>
+      const INPUT_SAMPLE_RATE = 16000;
+      const OUTPUT_SAMPLE_RATE = 24000;
+      const WS_PROTOCOL_VERSION = 1;
+
+      const startBtn = document.getElementById('start');
+      const stopBtn = document.getElementById('stop');
+      const statusEl = document.getElementById('status');
+      const toolStatusEl = document.getElementById('tool-status');
+      const transcriptEl = document.getElementById('transcript');
+      const logEl = document.getElementById('log');
+
+      let socket = null;
+      let stream = null;
+      let captureContext = null;
+      let captureSource = null;
+      let captureProcessor = null;
+      let captureMute = null;
+      let playbackContext = null;
+      let playbackSources = new Set();
+      let playbackNextTime = 0;
+      let audioReady = false;
+      let stopping = false;
+      let connectionTimer = null;
+      let captureResampler = null;
+      const transcripts = new Map();
+
+      function log(line) {
+        logEl.textContent += line + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function setStatus(message) {
+        statusEl.textContent = message;
+      }
+
+      function renderTranscripts() {
+        const turns = [...transcripts.entries()]
+          .sort(([first], [second]) => Number(first) - Number(second))
+          .map(([, entry]) => ({ ...entry }));
+        const visibleTurns = [];
+        for (const turn of turns) {
+          const previous = visibleTurns.at(-1);
+          // Gemini can finalize a single utterance as several adjacent transcript
+          // parts. Join those fragments while keeping speaker changes as turn breaks.
+          if (previous?.speaker === turn.speaker) previous.text += turn.text;
+          else visibleTurns.push(turn);
+        }
+        transcriptEl.textContent = visibleTurns
+          .map((entry) => `${entry.speaker === 'user' ? 'You' : 'Assistant'}: ${entry.text.trim()}`)
+          .join('\n');
+        transcriptEl.scrollTop = transcriptEl.scrollHeight;
+      }
+
+      function websocketUrl() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}/gemini/voice`;
+      }
+
+      function appendSamples(first, second) {
+        const combined = new Float32Array(first.length + second.length);
+        combined.set(first);
+        combined.set(second, first.length);
+        return combined;
+      }
+
+      // Keep the fractional source position between ScriptProcessor callbacks so that
+      // a browser running its input context at 48 kHz still emits a continuous 16 kHz stream.
+      function downsample(samples, sourceRate) {
+        if (sourceRate === INPUT_SAMPLE_RATE) return samples;
+        if (!captureResampler || captureResampler.sourceRate !== sourceRate) {
+          captureResampler = { sourceRate, buffer: new Float32Array(0), offset: 0 };
+        }
+        captureResampler.buffer = appendSamples(captureResampler.buffer, samples);
+        const ratio = sourceRate / INPUT_SAMPLE_RATE;
+        const output = [];
+        while (captureResampler.offset + 1 < captureResampler.buffer.length) {
+          const index = Math.floor(captureResampler.offset);
+          const fraction = captureResampler.offset - index;
+          const current = captureResampler.buffer[index];
+          const next = captureResampler.buffer[index + 1];
+          output.push(current + (next - current) * fraction);
+          captureResampler.offset += ratio;
+        }
+        const consumed = Math.floor(captureResampler.offset);
+        if (consumed > 0) {
+          captureResampler.buffer = captureResampler.buffer.slice(consumed);
+          captureResampler.offset -= consumed;
+        }
+        return Float32Array.from(output);
+      }
+
+      function encodePcm16(samples) {
+        const bytes = new ArrayBuffer(samples.length * 2);
+        const view = new DataView(bytes);
+        for (let index = 0; index < samples.length; index += 1) {
+          const sample = Math.max(-1, Math.min(1, samples[index]));
+          view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        }
+        return bytes;
+      }
+
+      function attachMicrophone() {
+        if (!stream || !captureContext || !socket || !audioReady) return;
+        captureSource = captureContext.createMediaStreamSource(stream);
+        // At the requested 16 kHz rate, 512 frames is 32 ms of microphone audio.
+        // Browsers that keep a 48 kHz context deliver roughly 11 ms callbacks,
+        // which are resampled below before being sent to the relay.
+        captureProcessor = captureContext.createScriptProcessor(512, 1, 1);
+        captureMute = captureContext.createGain();
+        captureMute.gain.value = 0;
+        captureResampler = null;
+        captureProcessor.onaudioprocess = (event) => {
+          if (!audioReady || !socket || socket.readyState !== WebSocket.OPEN) return;
+          const samples = downsample(
+            event.inputBuffer.getChannelData(0),
+            captureContext.sampleRate,
+          );
+          if (samples.length) socket.send(encodePcm16(samples));
+        };
+        captureSource.connect(captureProcessor);
+        // ScriptProcessor nodes need an output connection to run in some browsers. A muted
+        // destination keeps the microphone out of the speakers while driving the callback.
+        captureProcessor.connect(captureMute);
+        captureMute.connect(captureContext.destination);
+        captureContext.resume().catch(() => {});
+      }
+
+      function playPcm16(data) {
+        if (!playbackContext || data.byteLength % 2 !== 0) {
+          if (data.byteLength % 2 !== 0) log('Ignored an invalid odd-length PCM audio frame.');
+          return;
+        }
+        const samples = new Int16Array(data);
+        const buffer = playbackContext.createBuffer(1, samples.length, OUTPUT_SAMPLE_RATE);
+        const channel = buffer.getChannelData(0);
+        for (let index = 0; index < samples.length; index += 1) {
+          channel[index] = samples[index] < 0 ? samples[index] / 0x8000 : samples[index] / 0x7fff;
+        }
+        const source = playbackContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(playbackContext.destination);
+        const startAt = Math.max(playbackContext.currentTime + 0.01, playbackNextTime);
+        playbackNextTime = startAt + buffer.duration;
+        playbackSources.add(source);
+        source.onended = () => {
+          playbackSources.delete(source);
+          source.disconnect();
+        };
+        source.start(startAt);
+        playbackContext.resume().catch(() => {});
+      }
+
+      function clearPlayback() {
+        for (const source of playbackSources) {
+          try { source.stop(); } catch {}
+          source.disconnect();
+        }
+        playbackSources.clear();
+        playbackNextTime = 0;
+      }
+
+      function handleEvent(event) {
+        if (!event || typeof event.type !== 'string') return;
+        switch (event.type) {
+          case 'ready':
+            if (
+              event.protocol !== WS_PROTOCOL_VERSION ||
+              event.encoding !== 'pcm16le' ||
+              event.channels !== 1 ||
+              event.input_sample_rate !== INPUT_SAMPLE_RATE ||
+              event.output_sample_rate !== OUTPUT_SAMPLE_RATE
+            ) {
+              throw new Error('The relay returned an unsupported audio protocol.');
+            }
+            audioReady = true;
+            attachMicrophone();
+            setStatus(`Live — ${event.model} · ${event.voice || 'Gemini'}`);
+            log(`Connected to ${event.model || 'Gemini Live'}; audio is ready.`);
+            break;
+          case 'transcript':
+            if (event.index === undefined || !event.speaker) return;
+            transcripts.set(String(event.index), { speaker: event.speaker, text: event.text || '' });
+            renderTranscripts();
+            break;
+          case 'tool_call':
+            toolStatusEl.textContent = `Calling ${event.name || 'tool'}…`;
+            log(`Tool call: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);
+            break;
+          case 'tool_result':
+            toolStatusEl.textContent = `Completed ${event.name || 'tool'}.`;
+            log(`Tool result: ${event.name || 'unknown'}${event.call_id ? ` (${event.call_id})` : ''}`);
+            break;
+          case 'clear_output':
+            clearPlayback();
+            log(`Assistant output cleared${event.reason ? ` (${event.reason})` : ''}.`);
+            break;
+          case 'turn_complete':
+            setStatus('Live — start talking');
+            log('Turn complete.');
+            break;
+          case 'reconnected':
+            setStatus('Reconnected — start talking');
+            log(`Relay reconnected${event.state_restored ? ' with state restored' : ''}.`);
+            break;
+          case 'pong':
+            break;
+          case 'error': {
+            const message = event.message || 'The Gemini relay reported an error.';
+            log(`Error${event.code ? ` [${event.code}]` : ''}: ${message}`);
+            if (event.fatal) stop(`Failed: ${message}`, false);
+            else setStatus(`Warning: ${message}`);
+            break;
+          }
+          default:
+            log(`Relay event: ${event.type}`);
+        }
+      }
+
+      function cleanupAudio() {
+        audioReady = false;
+        if (captureProcessor) {
+          captureProcessor.onaudioprocess = null;
+          captureProcessor.disconnect();
+          captureProcessor = null;
+        }
+        if (captureSource) { captureSource.disconnect(); captureSource = null; }
+        if (captureMute) { captureMute.disconnect(); captureMute = null; }
+        clearPlayback();
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+        }
+        const contexts = [captureContext, playbackContext];
+        captureContext = null;
+        playbackContext = null;
+        for (const context of contexts) {
+          if (context && context.state !== 'closed') context.close().catch(() => {});
+        }
+      }
+
+      function stop(message = 'Idle', notifyServer = true) {
+        if (stopping) return;
+        stopping = true;
+        clearTimeout(connectionTimer);
+        connectionTimer = null;
+        const activeSocket = socket;
+        socket = null;
+        audioReady = false;
+        if (activeSocket && activeSocket.readyState < WebSocket.CLOSING) {
+          if (notifyServer && activeSocket.readyState === WebSocket.OPEN) {
+            try { activeSocket.send(JSON.stringify({ type: 'close' })); } catch {}
+          }
+          try { activeSocket.close(1000, 'Client stopped'); } catch {}
+        }
+        cleanupAudio();
+        stopBtn.disabled = true;
+        startBtn.disabled = false;
+        setStatus(message);
+        stopping = false;
+      }
+
+      async function start() {
+        if (socket) return;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        transcripts.clear();
+        renderTranscripts();
+        toolStatusEl.textContent = 'No tool activity yet.';
+        logEl.textContent = '';
+        setStatus('Checking Gemini setup…');
+
+        const setupResponse = await fetch('/gemini/health');
+        if (!setupResponse.ok) throw new Error('Cannot reach the local server.');
+        const setup = await setupResponse.json();
+        if (!setup.configured) throw new Error('Add GOOGLE_API_KEY to .env, save it, then try again.');
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error('Open this page on localhost or HTTPS to use the microphone.');
+        }
+
+        setStatus('Requesting microphone…');
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: INPUT_SAMPLE_RATE,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        captureContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+        playbackContext = new AudioContext();
+        socket = new WebSocket(websocketUrl());
+        socket.binaryType = 'arraybuffer';
+        const currentSocket = socket;
+        socket.onopen = () => {
+          if (socket !== currentSocket) return;
+          setStatus('Connecting to Gemini…');
+        };
+        socket.onmessage = async (message) => {
+          if (socket !== currentSocket) return;
+          if (typeof message.data === 'string') {
+            try { handleEvent(JSON.parse(message.data)); }
+            catch (error) { stop(`Failed: ${error.message}`, false); }
+            return;
+          }
+          const data = message.data instanceof ArrayBuffer
+            ? message.data
+            : await message.data.arrayBuffer();
+          if (socket === currentSocket) playPcm16(data);
+        };
+        socket.onerror = () => {
+          if (socket === currentSocket) setStatus('Connection error…');
+        };
+        socket.onclose = () => {
+          if (socket === currentSocket) stop('Connection closed.', false);
+        };
+        connectionTimer = setTimeout(() => {
+          if (socket === currentSocket && !audioReady) stop('Gemini connection timed out.', false);
+        }, 20000);
+      }
+
+      startBtn.onclick = () => start().catch((error) => stop(`Failed: ${error.message}`));
+      stopBtn.onclick = () => stop();
+      window.addEventListener('pagehide', () => stop('Closed', true));
+
+      fetch('/gemini/health')
+        .then((response) => {
+          if (!response.ok) throw new Error('Server unavailable');
+          return response.json();
+        })
+        .then((setup) => {
+          setStatus(setup.configured
+            ? `Ready — ${setup.model} · ${setup.voice}`
+            : 'Setup: add GOOGLE_API_KEY to .env, save it, then click Start call.');
+        })
+        .catch(() => setStatus('Could not reach the local server.'));
+    </script>
+  </body>
+</html>
