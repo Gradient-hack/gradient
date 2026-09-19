@@ -29,14 +29,38 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13 or newer.
    route re-ranking. The page also shows the V2 removed/added stops and the
    preference delta.
 7. Use **1 · Switch to music**, **2 · Remember mural**, **3 · Simulate wrong
-   turn**, and **4 · Find nearby food** under **Preview the story beats** to run
-   the deterministic fake events. **Start simulation** sends location updates
-   when the WebSocket is live and moves the dot locally when offline.
+   direction**, and **4 · Find nearby food** under **Preview the story beats** to
+   run the deterministic fake events. The wrong-direction control sends a
+   structured `route_deviation` event during a live walk and shows
+   “recalculating” until the backend commits a `route_update`; without a live
+   WebSocket it previews the deterministic Berwick Street reroute locally. The
+   map changes immediately, and Gemini explains the committed reroute at the
+   next speech-turn boundary.
+   **Start simulation** sends location updates when the WebSocket is live and
+   moves the dot locally when offline.
 8. Click **End** to close the WebSocket and release the microphone.
 
 The page starts without a key and shows setup instructions. Configuration is
 read for every new call, so saving `.env` is enough; no server restart is
 needed. Shell environment variables take precedence over `.env`.
+
+## Deploy on Modal
+
+The Modal workspace must use the `2025.06` image builder so the deployment can
+run on Python 3.13. Create a Modal secret from the local configuration, preview
+the deployment, and then deploy it permanently:
+
+```bash
+uvx modal setup
+uvx modal workspace settings set image-builder-version 2025.06
+uvx modal secret create gradient-google --from-dotenv .env
+uvx modal serve modal_app.py
+uvx modal deploy modal_app.py
+```
+
+The generated `modal.run` URL uses HTTPS, and the browser automatically connects
+to the matching secure WebSocket endpoint. The deployment scales to zero when
+idle and allows walks to remain connected for up to one hour.
 
 ## Configuration
 
@@ -61,26 +85,32 @@ The browser connects to `ws://127.0.0.1:8888/gemini/voice`. It sends raw signed
 PCM16 little-endian mono microphone frames at 16 kHz and receives PCM16 mono
 model audio at 24 kHz. JSON frames carry readiness, transcripts, tool activity,
 route updates, podcast state, location progress, barge-in output clearing, turn
-completion, reconnection, and errors.
+completion, reconnection, and errors. A live wrong-direction rehearsal sends a
+`route_deviation` frame with the current `route_version`, monotonic `seq`,
+timestamp, simulated location, distance from the route, and heading; the UI
+waits for the resulting `route_update` before showing the reroute as committed.
 
 The setup endpoint is `http://127.0.0.1:8888/gemini/health`.
 
-Gemini can call six focused Pydantic AI tools: `plan_walk`, `change_topic`,
-`remember_place`, `handle_route_deviation`, `find_nearby_food`, and
-`get_walk_status`. Location updates are ordinary WebSocket events rather than
-model tool calls, so GPS can update the current stop without spending a model
-turn on every fix.
+Gemini can call five focused Pydantic AI tools: `plan_walk`, `change_topic`,
+`remember_place`, `find_nearby_food`, and `get_walk_status`. Location updates
+and app-detected route deviations are ordinary WebSocket events rather than
+model tool calls, so GPS and rerouting can update the walk without spending a
+model turn on every fix.
 
 The browser rehearsal controls use fake route data so the complete Chinatown /
 Soho conversation can be demonstrated without a key: V1 starts at 25 minutes,
-V2 searches nearby for music and counterculture, V3 recalls a mural, V3B asks
-whether to take the detour, and V4 adds a food stop. The controls send the
-corresponding `demo_theme` preferences when a live WebSocket is open.
+V2 searches nearby for music and counterculture, V3 recalls a mural, V3B sends
+the simulated off-route location to the backend for automatic rerouting, and V4
+adds a food stop. The other controls send their corresponding `demo_theme`
+preferences when a live WebSocket is open.
 
 ## Files
 
 - `main.py`: shared agent instructions, walking tools, route setup, and the
   application entrypoint.
+- `modal_app.py`: Python 3.13 Modal image, secret, scaling, and ASGI deployment
+  configuration.
 - `gemini_proxy.py`: Pydantic AI Gemini Live WebSocket relay.
 - `walk_demo.py`: per-session fake routes, POIs, location progress, and
   location-anchored podcast sequencing.

@@ -19,6 +19,10 @@ from pydantic_ai.messages import SystemPromptPart
 EventSink = Callable[[dict[str, Any]], Awaitable[None]]
 
 
+class RouteVersionMismatchError(ValueError):
+    """A client event was based on a route that is no longer current."""
+
+
 @dataclass(frozen=True)
 class FakePoi:
     id: str
@@ -240,6 +244,9 @@ class WalkSessionState:
     )
     search_origin: dict[str, float] | None = None
     deviation: str | None = None
+    deviation_distance_m: float | None = None
+    deviation_heading_deg: float | None = None
+    deviation_reason: str | None = None
     memories: list[dict[str, str]] = field(default_factory=list)
     latest_location: dict[str, Any] | None = None
     last_location_seq: int = -1
@@ -276,6 +283,9 @@ class WalkSessionState:
         self.preferences = list(STORYBOARD_PREFERENCES[storyboard_version])
         self.search_origin = search_origin
         self.deviation = deviation
+        self.deviation_distance_m = None
+        self.deviation_heading_deg = None
+        self.deviation_reason = None
 
     def _set_preference_deltas(self, previous: Sequence[str]) -> None:
         current = set(self.preferences)
@@ -512,6 +522,37 @@ class WalkSessionState:
             return "I added a nearby food stop where the detour is feasible, then rejoined the Soho route."
         return f"I restored the Chinatown history and food route with {len(self.points_of_interest)} stops."
 
+    def apply_route_deviation(
+        self,
+        *,
+        current_location: dict[str, float] | None,
+        distance_from_route_m: float,
+        heading_deg: float | None = None,
+        reason: str | None = None,
+    ) -> str:
+        """Commit the deterministic fake route chosen for an automatic deviation."""
+
+        previous_preferences = tuple(self.preferences)
+        if current_location is not None:
+            self.latest_location = dict(current_location)
+        origin = current_location or self._latest_search_origin()
+        self.route_version += 1
+        self.theme = "music"
+        self._build_route(
+            "v3b",
+            search_origin=origin,
+            deviation="via Berwick Street",
+        )
+        self._set_preference_deltas(previous_preferences)
+        self.deviation_distance_m = distance_from_route_m
+        self.deviation_heading_deg = heading_deg
+        self.deviation_reason = reason or "wrong direction"
+        self._seed_podcast()
+        return (
+            "I detected the route deviation and continued via Berwick Street "
+            "without backtracking, keeping the arrival time and interest fit on target."
+        )
+
     def _latest_search_origin(self) -> dict[str, float] | None:
         if self.latest_location is None:
             return None
@@ -535,6 +576,9 @@ class WalkSessionState:
             "search_origin": self.search_origin,
             "current_location": self.latest_location,
             "deviation": self.deviation,
+            "deviation_distance_m": self.deviation_distance_m,
+            "deviation_heading_deg": self.deviation_heading_deg,
+            "deviation_reason": self.deviation_reason,
             "memories": list(self.memories),
             "geometry": [
                 {"latitude": latitude, "longitude": longitude}
@@ -755,3 +799,136 @@ class WalkSessionDeps:
             longitude=float(longitude),
             accuracy_m=float(accuracy_m),
         )
+
+    def _deviation_location_from_control(
+        self, control: dict[str, Any]
+    ) -> dict[str, float] | None:
+        candidate = control.get("current_location")
+        if candidate is None:
+            candidate = control.get("location")
+        if candidate is None and ("latitude" in control or "longitude" in control):
+            candidate = {
+                "latitude": control.get("latitude"),
+                "longitude": control.get("longitude"),
+                "accuracy_m": control.get("accuracy_m"),
+            }
+        if candidate is None:
+            if self.state.latest_location is None:
+                return None
+            candidate = self.state.latest_location
+        if not isinstance(candidate, dict):
+            raise ValueError(
+                "route_deviation.current_location must be an object with latitude and longitude."
+            )
+
+        latitude = candidate.get("latitude")
+        longitude = candidate.get("longitude")
+        if (
+            isinstance(latitude, bool)
+            or not isinstance(latitude, (int, float))
+            or not math.isfinite(latitude)
+            or not -90 <= latitude <= 90
+        ):
+            raise ValueError(
+                "route_deviation.current_location.latitude must be between -90 and 90."
+            )
+        if (
+            isinstance(longitude, bool)
+            or not isinstance(longitude, (int, float))
+            or not math.isfinite(longitude)
+            or not -180 <= longitude <= 180
+        ):
+            raise ValueError(
+                "route_deviation.current_location.longitude must be between -180 and 180."
+            )
+        accuracy_m = candidate.get("accuracy_m")
+        if accuracy_m is not None and (
+            isinstance(accuracy_m, bool)
+            or not isinstance(accuracy_m, (int, float))
+            or not math.isfinite(accuracy_m)
+            or accuracy_m < 0
+        ):
+            raise ValueError(
+                "route_deviation.current_location.accuracy_m must be a non-negative number."
+            )
+        location = {
+            "latitude": float(latitude),
+            "longitude": float(longitude),
+        }
+        if accuracy_m is not None:
+            location["accuracy_m"] = float(accuracy_m)
+        return location
+
+    async def route_deviation_from_control(
+        self, control: dict[str, Any]
+    ) -> tuple[dict[str, Any], SystemPromptPart]:
+        """Validate and commit an app-reported route deviation."""
+
+        route_version = control.get("route_version")
+        if isinstance(route_version, bool) or not isinstance(route_version, int):
+            raise ValueError(
+                "route_deviation.route_version must be a non-negative integer."
+            )
+        if route_version < 0:
+            raise ValueError(
+                "route_deviation.route_version must be a non-negative integer."
+            )
+        if route_version != self.state.route_version:
+            raise RouteVersionMismatchError(
+                "route_deviation.route_version does not match the current route version "
+                f"({self.state.route_version}). Refresh the route before retrying."
+            )
+
+        distance_from_route_m = control.get("distance_from_route_m")
+        if distance_from_route_m is None:
+            distance_from_route_m = control.get("distance_m")
+        if (
+            isinstance(distance_from_route_m, bool)
+            or not isinstance(distance_from_route_m, (int, float))
+            or not math.isfinite(distance_from_route_m)
+            or distance_from_route_m < 0
+        ):
+            raise ValueError(
+                "route_deviation.distance_from_route_m must be a non-negative number."
+            )
+
+        heading_deg = control.get("heading_deg")
+        if heading_deg is not None and (
+            isinstance(heading_deg, bool)
+            or not isinstance(heading_deg, (int, float))
+            or not math.isfinite(heading_deg)
+            or not 0 <= heading_deg <= 360
+        ):
+            raise ValueError("route_deviation.heading_deg must be between 0 and 360.")
+        reason = control.get("reason")
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise ValueError("route_deviation.reason must be a non-empty string.")
+        location = self._deviation_location_from_control(control)
+        summary = self.state.apply_route_deviation(
+            current_location=location,
+            distance_from_route_m=float(distance_from_route_m),
+            heading_deg=float(heading_deg) if heading_deg is not None else None,
+            reason=reason.strip() if isinstance(reason, str) else None,
+        )
+        await self.emit(self.state.route_event())
+        await self.emit(self.state.podcast_event())
+        location_text = (
+            f"latitude {location['latitude']:.5f}, longitude {location['longitude']:.5f}"
+            if location is not None
+            else "the latest known location"
+        )
+        prompt = SystemPromptPart(
+            "The app reported a route deviation and the route service committed the "
+            "new fake route via Berwick Street. "
+            f"The walker is at {location_text}, {float(distance_from_route_m):.0f} metres "
+            "from the previous route. Explain the reroute briefly, mention that it "
+            "avoids backtracking, and continue the podcast from the walker's current place. "
+            "Do not ask for permission and do not invent live routing details."
+        )
+        result = {
+            "summary": summary,
+            "route_version": self.state.route_version,
+            "distance_from_route_m": float(distance_from_route_m),
+            "current_location": self.state.latest_location,
+        }
+        return result, prompt

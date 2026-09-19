@@ -30,7 +30,7 @@ from pydantic_ai.realtime.google import (
 )
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
-from walk_demo import WalkSessionDeps
+from walk_demo import RouteVersionMismatchError, WalkSessionDeps
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -288,6 +288,57 @@ async def _receive_microphone(
                     # and enqueueing the narration. The next connection can
                     # continue from a fresh session safely.
                     logger.debug("Could not enqueue POI narration", exc_info=True)
+        elif control_type == "route_deviation":
+            if deps is None:
+                await client.send_event(
+                    "error",
+                    code="walk_unavailable",
+                    message="Walk state is unavailable for this session.",
+                    fatal=False,
+                )
+                continue
+            try:
+                result, reroute_prompt = await deps.route_deviation_from_control(
+                    control
+                )
+            except RouteVersionMismatchError as error:
+                await client.send_event(
+                    "error",
+                    code="stale_route_version",
+                    message=str(error),
+                    fatal=False,
+                )
+                continue
+            except (TypeError, ValueError) as error:
+                await client.send_event(
+                    "error",
+                    code="invalid_route_deviation",
+                    message=str(error),
+                    fatal=False,
+                )
+                continue
+
+            await client.send_event(
+                "walk_ack",
+                action="route_deviation",
+                summary=result["summary"],
+                route_version=result["route_version"],
+                distance_from_route_m=result["distance_from_route_m"],
+            )
+            # State events normally travel through the dependency event sink.
+            # Send them directly in isolated protocol tests and other callers
+            # that construct WalkSessionDeps without a sink.
+            if deps.event_sink is None:
+                route_event = deps.state.route_event()
+                await client.send_event(route_event.pop("type"), **route_event)
+                podcast_event = deps.state.podcast_event()
+                await client.send_event(podcast_event.pop("type"), **podcast_event)
+            try:
+                session.enqueue(reroute_prompt, priority="asap")
+            except (RuntimeError, UserError):
+                logger.debug(
+                    "Could not enqueue route deviation response", exc_info=True
+                )
         elif control_type in {"demo_plan", "demo_theme"}:
             if deps is None:
                 await client.send_event(

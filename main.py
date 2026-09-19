@@ -26,7 +26,8 @@ INSTRUCTIONS = (
     "Help the walker plan a route, tell short connected stories about places, and adapt when their interests change. "
     "Use plan_walk when they ask for a route and get_walk_status for progress questions. "
     "If the walker says exactly 'Can we talk about music?' or expresses an equivalent topic change, you MUST call change_topic with topic='music' before responding; changing narration alone is not enough. "
-    "Use remember_place for a memory or reaction, handle_route_deviation for a wrong turn or request to go via Berwick Street, and find_nearby_food for a food request. "
+    "Use remember_place for a memory or reaction, and find_nearby_food for a food request. "
+    "The app may report a route deviation directly; explain any committed reroute when the relay supplies it. "
     "Give natural connected narration in short 30 to 60 second beats with varied transitions. "
     "Never ask whether the walker wants to hear more, offer to stop, or end a beat with a permission question; continue the podcast until the walker speaks. "
     "When the walker interrupts, acknowledge them briefly, answer naturally, and then continue the walk. "
@@ -94,15 +95,6 @@ async def remember_place(
 
     detail = f"{memory} {reaction or ''}".strip()
     return await ctx.deps.revise_walk(memory=detail)
-
-
-@agent.tool
-async def handle_route_deviation(
-    ctx: RunContext[WalkSessionDeps], deviation: str
-) -> str:
-    """Handle a wrong turn or requested detour while preserving the walk."""
-
-    return await ctx.deps.revise_walk(deviation=deviation)
 
 
 @agent.tool

@@ -15,11 +15,11 @@ class AgentToolSurfaceTest(unittest.TestCase):
                 "plan_walk",
                 "change_topic",
                 "remember_place",
-                "handle_route_deviation",
                 "find_nearby_food",
                 "get_walk_status",
             }.issubset(names)
         )
+        self.assertNotIn("handle_route_deviation", names)
         self.assertNotIn("revise_walk", names)
 
 
@@ -289,6 +289,90 @@ class WalkSessionStateTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(narration)
         self.assertTrue(progress["narration_pending"])
         self.assertEqual(progress["current_stop_id"], "chinatown-gate")
+
+    async def test_route_deviation_commits_v3b_from_current_location(self) -> None:
+        deps = WalkSessionDeps()
+        await deps.plan_walk(theme="music")
+
+        result, prompt = await deps.route_deviation_from_control(
+            {
+                "type": "route_deviation",
+                "route_version": deps.state.route_version,
+                "current_location": {
+                    "latitude": 51.5130,
+                    "longitude": -0.1337,
+                    "accuracy_m": 6,
+                },
+                "distance_from_route_m": 54,
+                "heading_deg": 270,
+                "reason": "wrong direction",
+            }
+        )
+
+        self.assertIn("via Berwick Street", result["summary"])
+        self.assertIn("avoids backtracking", prompt.content)
+        self.assertEqual(deps.state.route_version, 2)
+        self.assertEqual(deps.state.storyboard_version, "v3b")
+        self.assertEqual(
+            [poi.id for poi in deps.state.points_of_interest],
+            [
+                "old-compton-street",
+                "spirit-of-soho-mural",
+                "berwick-street",
+                "soho-square",
+            ],
+        )
+        self.assertEqual(
+            deps.state.search_origin,
+            {"latitude": 51.513, "longitude": -0.1337, "accuracy_m": 6},
+        )
+        self.assertEqual(deps.state.deviation_distance_m, 54)
+        self.assertEqual(deps.state.deviation_heading_deg, 270)
+        self.assertEqual(deps.emitted_events[-2]["type"], "route_update")
+        self.assertEqual(deps.emitted_events[-1]["type"], "podcast_state")
+
+    async def test_route_deviation_uses_latest_location_when_payload_omits_it(
+        self,
+    ) -> None:
+        deps = WalkSessionDeps()
+        await deps.plan_walk()
+        deps.location_from_control(
+            {
+                "seq": 1,
+                "timestamp": "2026-09-19T12:00:00Z",
+                "latitude": 51.5128,
+                "longitude": -0.1344,
+                "accuracy_m": 5,
+            }
+        )
+
+        result, _ = await deps.route_deviation_from_control(
+            {
+                "type": "route_deviation",
+                "route_version": deps.state.route_version,
+                "distance_from_route_m": 42,
+            }
+        )
+
+        self.assertEqual(result["current_location"]["latitude"], 51.5128)
+        self.assertEqual(deps.state.search_origin["longitude"], -0.1344)
+
+    async def test_route_deviation_rejects_stale_route_version(self) -> None:
+        deps = WalkSessionDeps()
+        await deps.plan_walk()
+
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            await deps.route_deviation_from_control(
+                {
+                    "type": "route_deviation",
+                    "route_version": deps.state.route_version - 1,
+                    "distance_from_route_m": 55,
+                    "latitude": 51.5130,
+                    "longitude": -0.1337,
+                }
+            )
+
+        self.assertEqual(deps.state.route_version, 1)
 
 
 if __name__ == "__main__":

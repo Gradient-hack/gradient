@@ -158,6 +158,82 @@ class MicrophoneProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(websocket.events[-1]["type"], "podcast_state")
         self.assertEqual(websocket.events[-1]["state"], "playing")
 
+    async def test_route_deviation_commits_route_and_enqueues_explanation(self) -> None:
+        websocket = FakeWebSocket(
+            [
+                {
+                    "type": "websocket.receive",
+                    "text": ('{"type":"demo_plan","theme":"music"}'),
+                },
+                {
+                    "type": "websocket.receive",
+                    "text": (
+                        '{"type":"route_deviation","route_version":1,'
+                        '"latitude":51.513,"longitude":-0.1337,'
+                        '"distance_from_route_m":54,"heading_deg":270}'
+                    ),
+                },
+                {"type": "websocket.receive", "text": '{"type":"close"}'},
+            ]
+        )
+        session = FakeSession()
+        client = RelayClient(websocket)  # type: ignore[arg-type]
+        deps = WalkSessionDeps()
+
+        chunks = [
+            chunk
+            async for chunk in _receive_microphone(  # type: ignore[arg-type]
+                websocket, session, client, deps
+            )
+        ]
+
+        self.assertEqual(chunks, [])
+        self.assertEqual(deps.state.route_version, 2)
+        self.assertEqual(deps.state.storyboard_version, "v3b")
+        self.assertEqual(
+            [event["type"] for event in websocket.events],
+            [
+                "walk_ack",
+                "podcast_state",
+                "walk_ack",
+                "route_update",
+                "podcast_state",
+            ],
+        )
+        self.assertEqual(websocket.events[2]["action"], "route_deviation")
+        prompt, priority = session.enqueued[-1]
+        self.assertIn("via Berwick Street", prompt.content)
+        self.assertEqual(priority, "asap")
+
+    async def test_stale_route_deviation_is_rejected_without_enqueueing(self) -> None:
+        websocket = FakeWebSocket(
+            [
+                {
+                    "type": "websocket.receive",
+                    "text": '{"type":"demo_plan"}',
+                },
+                {
+                    "type": "websocket.receive",
+                    "text": '{"type":"route_deviation","route_version":0,"distance_from_route_m":54}',
+                },
+                {"type": "websocket.receive", "text": '{"type":"close"}'},
+            ]
+        )
+        session = FakeSession()
+        client = RelayClient(websocket)  # type: ignore[arg-type]
+        deps = WalkSessionDeps()
+
+        [
+            chunk
+            async for chunk in _receive_microphone(  # type: ignore[arg-type]
+                websocket, session, client, deps
+            )
+        ]
+
+        self.assertEqual(websocket.events[-1]["code"], "stale_route_version")
+        self.assertEqual(deps.state.route_version, 1)
+        self.assertEqual(len(session.enqueued), 1)
+
     async def test_unsupported_explicit_interrupt_is_not_fatal(self) -> None:
         websocket = FakeWebSocket(
             [
